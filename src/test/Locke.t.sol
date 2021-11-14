@@ -27,7 +27,7 @@ contract StreamTest is LockeTest {
             address(stream),
             sig,
             abi.encode(0),
-            "amt"
+            "fund:poor"
         );
         hevm.warp(block.timestamp + 11);
         expect_revert_with(
@@ -71,6 +71,38 @@ contract StreamTest is LockeTest {
         assertEq(rewardTokenFeeAmount, feeAmt);
         assertEq(testTokenA.balanceOf(address(stream)), 1337);
         // ===============================
+    }
+
+    function test_stake() public {
+        Stream stream = defaultStreamFactory.createStream(
+            address(testTokenA),
+            address(testTokenB),
+            block.timestamp + 10, // 10 seconds in future
+            4 weeks,
+            26 weeks, // 6 months
+            0,
+            false
+        );
+
+        bytes4 sig = sigs("stake(uint112)");
+        expect_revert_with(
+            address(stream),
+            sig,
+            abi.encode(0),
+            "stake:poor"
+        );
+
+        // fast forward 4 weeks
+        ff(4 weeks);
+        expect_revert_with(
+            address(stream),
+            sig,
+            abi.encode(100),
+            "stake:!stream"
+        );
+        rev(4 weeks);
+
+        
     }
 }
 

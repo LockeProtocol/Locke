@@ -107,10 +107,26 @@ contract Stream is ERC20, ExternallyGoverned {
 
     uint112 private rewardTokenFeeAmount;
 
+    struct TokenStream {
+        uint112 tokens;
+        uint32 lastUpdate;
+    }
+    // mapping of address to number of tokens not yet streamed over
+    mapping (address => TokenStream) tokensNotYetStreamed;
+
     StreamParams public streamParams;
 
 
     event StreamFunded(uint256 amount);
+    event Staked(address indexed who, uint256 amount);
+
+    modifier updateStream(address who) {
+        TokenStream storage ts = tokensNotYetStreamed[msg.sender];
+        uint32 time_delta = block.timestamp - ts.lastUpdate;
+        
+        _;
+    }
+
     constructor(
         uint64 streamId,
         address creator,
@@ -138,7 +154,7 @@ contract Stream is ERC20, ExternallyGoverned {
      * @dev Allows _anyone_ to fund this stream
     **/
     function fundStream(uint112 amount) public {
-        require(amount > 0, "amt");
+        require(amount > 0, "fund:poor");
         require(block.timestamp < startTime, ">time");
         uint256 amt;
         // if fee is enabled, take a fee
@@ -160,26 +176,55 @@ contract Stream is ERC20, ExternallyGoverned {
             rewardTokenAmount += amount;
         }
         // transfer from sender
+        uint256 prevBal = ERC20(rewardToken).balanceOf(address(this));
         ERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 newBal = ERC20(rewardToken).balanceOf(address(this));
+        require(newBal > prevBal, "rug:bal");
+
+        if (newBal < prevBal + amount) {
+            // some kind of fee on transfer token, we got less than expected
+            uint256 delta = (prevBal + amount) - newBal;
+            // if the rewardToken takes a fee on transfer, likely
+            // the rewarder is the one in control of the impl. We only charge their
+            // rewards because of that fact
+            rewardTokenAmount -= delta;
+            amt -= delta;
+        }
+        
         emit StreamFunded(amt)
     }
 
-    function stake(uint256 amount) public {
+    function stake(uint112 amount) public updateStream(msg.sender) {
         require(amount > 0, "stake:poor");
-        require(now < startTime + streamDuration, "stake:!stream");
-        
-        if (!isSale) {
-            // not a straight sale, so give the user some receipt tokens
-        } else {
-
-        }
+        require(block.timestamp < startTime + streamDuration, "stake:!stream");
 
         // transfer tokens over
+        uint256 prevBal = ERC20(depositToken).balanceOf(address(this));
         ERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 newBal = ERC20(depositToken).balanceOf(address(this));
+        require(newBal > prevBal, "rug:bal");
+        
+        uint256 trueDepositAmt = newBal - prevBal;
+
+        depositTokenAmount += trueDepositAmt;
+        TokenStream storage ts = tokensNotYetStreamed[msg.sender];
+        ts.tokens += trueDepositAmt;
+
+        // TODO: Receipt tokens
+        uint256 receiptTokenAmt = trueDepositAmt;
+
+        if (!isSale) {
+            // not a straight sale, so give the user some receipt tokens
+            _mint(msg.sender, receiptTokenAmt);
+        } else {
+            // we don't mint if it is a sale.
+        }
+
+        emit Staked(msg.sender, trueDepositAmt);
     }
 
 
-    function recoverTokens(address token, address receipient) externallyGoverned public {
+    function recoverTokens(address token, address receipient) public externallyGoverned {
         // ░░░░░░░░▄▄██▀▀▀▀▀▀▀████▄▄▄▄░░░░░░░░░░░░░
         // ░░░░░▄██▀░░░░░░░░░░░░░░░░░▀▀██▄▄░░░░░░░░
         // ░░░░██░░░░░░░░░░░░░░░░░░░░░░░░▀▀█▄▄░░░░░
@@ -325,7 +370,7 @@ contract StreamFactory is Governed {
         return stream;
     }
 
-    function updateStreamParams(GovernableStreamParams memory newParams) governed public {
+    function updateStreamParams(GovernableStreamParams memory newParams) public governed {
         // DATA VALIDATION:
         //  there is no real concept of "sane" limits here, and if misconfigured its ultimated
         //  not a massive deal so no data validation is done
@@ -334,7 +379,7 @@ contract StreamFactory is Governed {
         emit StreamParametersUpdated(old, newParams);
     }
 
-    function updateFeeParams(GovernableFeeParams memory newFeeParams) governed public {
+    function updateFeeParams(GovernableFeeParams memory newFeeParams) public governed {
         require(newFeeParams.feePercent <= MAX_FEE_PERCENT, "rug:fee");
         GovernableFeeParams memory old = feeParams;
         feeParams = newFeeParams;
