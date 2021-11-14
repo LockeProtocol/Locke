@@ -58,11 +58,11 @@ abstract contract ERC20 {
     ) {
 
         // L + depositTokenName + streamId = LUSD Coin-1
-        name = string(abi.encodePacked("L", IERC20(depositToken).name(), "-", streamdId));
+        name = string(abi.encodePacked("locke ", IERC20(depositToken).name(), ":", streamdId));
         // L + Symbol + streamId = LUSDC1
         // TODO: we could have start_time+stream_duration+depositlocktime as maturity-date
         // i.e. LETH8-AUG-14-2022
-        symbol = string(abi.encodePacked("L", IERC20(depositToken).symbol(), streamdId));
+        symbol = string(abi.encodePacked("locke", IERC20(depositToken).symbol(), streamdId));
         decimals = 18;
 
         transferStartTime = _transferStartTime;
