@@ -68,34 +68,35 @@ contract StreamTest is LockeTest {
         }
 
 
-        // === Fees Enabled ====
-        defaultStreamFactory.updateFeeParams(StreamFactory.GovernableFeeParams({
-            feePercent: 100,
-            feeEnabled: true
-        }));
-        uint256 nextStream = defaultStreamFactory.currStreamId();
-        emit log_named_uint("nextStream2", nextStream);
-        Stream stream = defaultStreamFactory.createStream(
-            address(testTokenA),
-            address(testTokenB),
-            uint32(block.timestamp + 10), // 10 seconds in future
-            minStreamDuration,
-            maxDepositLockDuration,
-            0,
-            false
-        );
+        {
+            // === Fees Enabled ====
+            defaultStreamFactory.updateFeeParams(StreamFactory.GovernableFeeParams({
+                feePercent: 100,
+                feeEnabled: true
+            }));
+            uint256 nextStream = defaultStreamFactory.currStreamId();
+            emit log_named_uint("nextStream2", nextStream);
+            Stream stream = defaultStreamFactory.createStream(
+                address(testTokenA),
+                address(testTokenB),
+                uint32(block.timestamp + 10), // 10 seconds in future
+                minStreamDuration,
+                maxDepositLockDuration,
+                0,
+                false
+            );
 
-        testTokenA.approve(address(stream), type(uint256).max);
+            testTokenA.approve(address(stream), type(uint256).max);
 
-        uint112 feeAmt = 13; // expected fee amt
-        uint256 gas_left = gasleft();
-        stream.fundStream(amt);
-        emit log_named_uint("gas_usage_w_fee", gas_left - gasleft());
-        (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount) = stream.tokenAmounts();
-        assertEq(rewardTokenAmount, amt - feeAmt);
-        assertEq(rewardTokenFeeAmount, feeAmt);
-        assertEq(testTokenA.balanceOf(address(stream)), 1337);
-        // ===============================
+            uint112 feeAmt = 13; // expected fee amt
+            uint256 gas_left = gasleft();
+            stream.fundStream(amt);
+            emit log_named_uint("gas_usage_w_fee", gas_left - gasleft());
+            (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount) = stream.tokenAmounts();
+            assertEq(rewardTokenAmount, amt - feeAmt);
+            assertEq(rewardTokenFeeAmount, feeAmt);
+            assertEq(testTokenA.balanceOf(address(stream)), 1337);
+        }
     }
 
     function test_stake() public {
@@ -153,9 +154,32 @@ contract StreamTest is LockeTest {
             // Successes
             stream.stake(100);
             LockeERC20 asLERC = LockeERC20(stream);
-            uint256 balance = asLERC.balanceOf(address(this));
+            assertEq(asLERC.balanceOf(address(this)), 100);
+
             (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount) = stream.tokenAmounts();
-            assertEq(balance, 100);
+            assertEq(depositTokenAmount, 100);
+
+            (uint112 tokens, uint32 lu) = stream.tokensNotYetStreamed(address(this));
+            assertEq(tokens, 100);
+        }
+        {            
+            // Sale test
+            Stream stream = defaultStreamFactory.createStream(
+                address(testTokenA),
+                address(testTokenB),
+                startTime,
+                minStreamDuration,
+                maxDepositLockDuration,
+                0,
+                true
+            );
+            testTokenB.approve(address(stream), type(uint256).max);
+            stream.stake(100);
+            LockeERC20 asLERC = LockeERC20(stream);
+            // no tokens wen sale
+            assertEq(asLERC.balanceOf(address(this)), 0);
+
+            (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount) = stream.tokenAmounts();
             assertEq(depositTokenAmount, 100);
             (uint112 tokens, uint32 lu) = stream.tokensNotYetStreamed(address(this));
             assertEq(tokens, 100);
@@ -174,23 +198,41 @@ contract StreamFactoryTest is LockeTest {
             uint32 minStreamDuration
         ) = defaultStreamFactory.streamParams();
 
-        bytes4 sig = sigs("createStream(address,address,uint32,uint32,uint32,uint32,bool)");
-        expect_revert_with(
-            address(defaultStreamFactory),
-            sig,
-            abi.encode(
-                address(0),
-                address(0),
-                block.timestamp - 10,
-                0,
-                0,
-                0,
-                false
-            ),
-            "rug:past"
-        );
+        {
+            // Fails
+            bytes4 sig = sigs("createStream(address,address,uint32,uint32,uint32,uint32,bool)");
+            expect_revert_with(
+                address(defaultStreamFactory),
+                sig,
+                abi.encode(
+                    address(0),
+                    address(0),
+                    block.timestamp - 10,
+                    0,
+                    0,
+                    0,
+                    false
+                ),
+                "rug:past"
+            );
 
-        if (minStreamDuration > 0) {
+            if (minStreamDuration > 0) {
+                expect_revert_with(
+                    address(defaultStreamFactory),
+                    sig,
+                    abi.encode(
+                        address(0),
+                        address(0),
+                        block.timestamp,
+                        minStreamDuration - 1,
+                        0,
+                        0,
+                        false
+                    ),
+                    "rug:streamDuration"
+                );
+            }
+
             expect_revert_with(
                 address(defaultStreamFactory),
                 sig,
@@ -198,59 +240,44 @@ contract StreamFactoryTest is LockeTest {
                     address(0),
                     address(0),
                     block.timestamp,
-                    minStreamDuration - 1,
+                    maxStreamDuration + 1,
                     0,
                     0,
                     false
                 ),
                 "rug:streamDuration"
             );
+
+            expect_revert_with(
+                address(defaultStreamFactory),
+                sig,
+                abi.encode(
+                    address(0),
+                    address(0),
+                    block.timestamp,
+                    minStreamDuration,
+                    maxDepositLockDuration + 1,
+                    0,
+                    false
+                ),
+                "rug:lockDuration"
+            );
+
+            expect_revert_with(
+                address(defaultStreamFactory),
+                sig,
+                abi.encode(
+                    address(0),
+                    address(0),
+                    block.timestamp,
+                    minStreamDuration,
+                    maxDepositLockDuration,
+                    maxRewardLockDuration + 1,
+                    false
+                ),
+                "rug:rewardDuration"
+            );
         }
-
-        expect_revert_with(
-            address(defaultStreamFactory),
-            sig,
-            abi.encode(
-                address(0),
-                address(0),
-                block.timestamp,
-                maxStreamDuration + 1,
-                0,
-                0,
-                false
-            ),
-            "rug:streamDuration"
-        );
-
-        expect_revert_with(
-            address(defaultStreamFactory),
-            sig,
-            abi.encode(
-                address(0),
-                address(0),
-                block.timestamp,
-                minStreamDuration,
-                maxDepositLockDuration + 1,
-                0,
-                false
-            ),
-            "rug:lockDuration"
-        );
-
-        expect_revert_with(
-            address(defaultStreamFactory),
-            sig,
-            abi.encode(
-                address(0),
-                address(0),
-                block.timestamp,
-                minStreamDuration,
-                maxDepositLockDuration,
-                maxRewardLockDuration + 1,
-                false
-            ),
-            "rug:rewardDuration"
-        );
         // ===   ===
         
 
