@@ -104,28 +104,40 @@ contract Stream is LockeERC20, ExternallyGoverned {
     }
 
     // ======= Storage ========
-    // slot a
-    address public rewardToken;
+    // == slot a ==
+    address public immutable rewardToken;
+    // ============
 
-    // slot b
-    address public depositToken;
+    // == slot b ==
+    address public immutable depositToken;
     uint64 public streamId;
+    // ============
 
-    // sloc c
+    //  == sloc c ==
+    // internal reward token amount to be given to depositors
     uint112 private rewardTokenAmount;
+    // internal deposit token amount locked/to be sold to stream creator
     uint112 private depositTokenAmount;
-    uint16 private feePercent;
-    bool private feeEnabled;
-    bool public isSale; // unrelated so make it public
+    // fee percent on reward tokens
+    uint16 private immutable feePercent;
+    // are fees enabled
+    bool private immutable feeEnabled;
+    // deposits are basically a *sale* to the stream creator
+    bool public isSale;
+    // ============
 
-    // slot d
+    // == slot d ==
     uint112 private rewardTokenFeeAmount;
+    // ============
 
-    // slot e
+    // == slot e ==
+    // stream parameter storage
     StreamParams public streamParams;
+    // ============
 
-    // slot f
+    // == slot f ==
     address public streamCreator;
+    // ============
 
     // mapping of address to number of tokens not yet streamed over
     mapping (address => TokenStream) public tokensNotYetStreamed;
@@ -148,7 +160,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
     modifier updateStream(address who) {
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
         uint32 time_delta = uint32(block.timestamp) - ts.lastUpdate;
-        
+        revert("todo");
         _;
     }
 
@@ -169,31 +181,48 @@ contract Stream is LockeERC20, ExternallyGoverned {
         ExternallyGoverned(msg.sender) // inherit factory governance
         public 
     {
+        // limit feePercent
         require(feePercent < 10000, "rug:fee");
+
+        // store streamParams
         streamParams = StreamParams({
             startTime: startTime, 
             streamDuration: streamDuration, 
             depositLockDuration: depositLockDuration, 
             rewardLockDuration: rewardLockDuration
         });
+
+        // set tokens
         depositToken = _depositToken;
         rewardToken = _rewardToken;
+
+        // set streamId
         streamId = _streamId;
+
+        // set fee info
         feePercent = _feePercent;
         feeEnabled = _feeEnabled;
+
+        // set sale info
         isSale = _isSale;
     }
 
+    /**
+     * @dev Returns relevant internal token amounts
+    **/
     function tokenAmounts() public view returns (uint112, uint112, uint112) {
         return (rewardTokenAmount, depositTokenAmount, rewardTokenFeeAmount);
     }
 
+    /**
+     * @dev Returns fee parameters
+    **/
     function feeParams() public view returns (uint16, bool) {
         return (feePercent, feeEnabled);
     }
 
     /**
-     * @dev Allows _anyone_ to fund this stream
+     * @dev Allows _anyone_ to fund this stream, if its before the stream start time
     **/
     function fundStream(uint112 amount) public {
         require(amount > 0, "fund:poor");
@@ -239,6 +268,11 @@ contract Stream is LockeERC20, ExternallyGoverned {
         emit StreamFunded(amt);
     }
 
+    /**
+     *  @dev Deposits depositTokens into this stream
+     * 
+     *  additionally, updates tokensNotYetStreamed
+    */ 
     function stake(uint112 amount) public updateStream(msg.sender) {
         require(amount > 0, "stake:poor");
         require(block.timestamp < streamParams.startTime + streamParams.streamDuration, "stake:!stream");
@@ -269,6 +303,12 @@ contract Stream is LockeERC20, ExternallyGoverned {
         emit Staked(msg.sender, trueDepositAmt);
     }
 
+    /**
+     *  @dev Allows a stream depositor to withdraw a specific amount of depositTokens during a stream,
+     *  up to their tokensNotYetStreamed amount
+     * 
+     *  additionally, updates tokensNotYetStreamed
+    */ 
     function withdraw(uint112 amount) public updateStream(msg.sender) {
         require(amount > 0, "withdraw:poor");
         // is the stream still going on? thats the only time a depositer can withdraw
@@ -290,6 +330,12 @@ contract Stream is LockeERC20, ExternallyGoverned {
         emit Withdrawn(msg.sender, amount);
     }
 
+    /**
+     *  @dev Allows a stream depositor to exit their entire remaining tokens that haven't streamed
+     *  and burns receiptTokens if its not a sale.
+     * 
+     *  additionally, updates tokensNotYetStreamed
+    */ 
     function exit() public updateStream(msg.sender) {
         // is the stream still going on? thats the only time a depositer can withdraw
         require(block.timestamp < streamParams.startTime + streamParams.streamDuration, "withdraw:!stream");
@@ -309,6 +355,10 @@ contract Stream is LockeERC20, ExternallyGoverned {
         emit Withdrawn(msg.sender, amount);
     }
 
+    /**
+     *  @dev Allows anyone to incentivize this stream with extra tokens
+     *  and requires the incentive to not be the reward or deposit token
+    */ 
     function createIncentive(address token, uint112 amount) public {
         require(token != rewardToken && token != depositToken, "rug:incentive");
         incentives[token] += amount;
@@ -332,17 +382,25 @@ contract Stream is LockeERC20, ExternallyGoverned {
         emit StreamIncentivized(token, amt);
     }
 
+    /**
+     *  @dev Allows the stream creator to claim an incentive once the stream is done
+    */ 
     function claimIncentive(address token) public {
         // creator is claiming
         require(msg.sender == streamCreator, "claim:!creator");
         // stream ended
         require(block.timestamp >= streamParams.startTime + streamParams.streamDuration, "claim:stream");
         uint112 amount = incentives[token];
+        require(amount > 0, "claim:poor");
         incentives[token] = 0;
         ERC20(token).safeTransfer(msg.sender, amount);
         emit StreamIncentiveClaimed(token, amt);
     }
 
+    /**
+     *  @dev Allows a receipt token hold to reclaim deposit tokens if the deposit lock is done & their receiptToken amount
+     *  is greater than the requested amount
+    */ 
     function claimDepositTokens(uint112 amount) public {
         // NOTE: given that endDepositLock is strictly *after* the last time withdraw or exit is callable
         // we dont need to updateStream(msg.sender)
@@ -362,6 +420,9 @@ contract Stream is LockeERC20, ExternallyGoverned {
         emit DepositTokensReclaimed(msg.sender, amount);
     }
 
+    /**
+     *  @dev Allows a creator to claim sold tokens if the stream has ended & this contract is a sale
+    */ 
     function creatorClaimSoldTokens(address destination) public {
         // can only claim when its a sale
         require(isSale, "claim:!sale");
@@ -403,6 +464,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
      *      2. if its the reward token:
      *          - DepositLock is fully done
      *          - Excess defined as balance - (rewardTokenAmount + rewardTokenFeeAmount)
+     *      3. if incentivized:
+     *          - excesss defined as bal - incentives[token]
     */ 
     function recoverTokens(address token, address recipient) public {
         // NOTE: it is the stream creators responsibility to save
@@ -441,16 +504,19 @@ contract Stream is LockeERC20, ExternallyGoverned {
             return;
         }
 
-        // this is a somewhat redundant check because
-        // the stream creator has full control over incentives
-        // after a specific time. but is cheaper than time checking.
-        // they should call claimIncentive.
-        require(incentive[token] == 0, "rug:Incentive");
+        if (incentives[token] > 0) {
+            require(block.timestamp >= streamParams.startTime + streamParams.streamDuration, "claim:stream");
+            uint256 bal = ERC20(token).balanceOf(address(this));
+            uint256 excess = bal - incentives[token];
+            ERC20(token).safeTransfer(recipient, excess);
+            emit RecoveredTokens(token, recipient, excess);
+            return;
+        }
 
-        // not reward token nor deposit token, free to transfer
+        // not reward token nor deposit nor incentivized token, free to transfer
         uint256 bal = ERC20(token).balanceOf(address(this));
         ERC20(token).safeTransfer(recipient, bal);
-        emit RecoveredTokens(token, recipient, excess);
+        emit RecoveredTokens(token, recipient, bal);
     }
 }
 
