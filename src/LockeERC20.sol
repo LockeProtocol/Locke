@@ -56,7 +56,7 @@ abstract contract LockeERC20 {
     constructor(
         address depositToken,
         uint256 streamId,
-        uint32 _transferStartTime
+        uint32 endStream
     ) {
 
         // L + depositTokenName + streamId = LUSD Coin-1
@@ -67,7 +67,7 @@ abstract contract LockeERC20 {
         symbol = string(abi.encodePacked("locke", ERC20(depositToken).symbol(), toString(streamId)));
         decimals = 18;
 
-        transferStartTime = _transferStartTime;
+        transferStartTime = endStream;
 
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
@@ -79,7 +79,7 @@ abstract contract LockeERC20 {
 
     modifier transferabilityDelay {
         // ensure the time is after start time
-        require(block.timestamp > transferStartTime, "transfer:!time");
+        require(block.timestamp >= transferStartTime, "transfer:stream");
         _;
     }
 
