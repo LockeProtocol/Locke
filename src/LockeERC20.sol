@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.0;
 
+import "solmate/tokens/ERC20.sol";
+
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
 /// @author Modified from Uniswap (https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2ERC20.sol)
-abstract contract ERC20 {
+abstract contract LockeERC20 {
     /*///////////////////////////////////////////////////////////////
                                   EVENTS
     //////////////////////////////////////////////////////////////*/
@@ -54,15 +56,15 @@ abstract contract ERC20 {
     constructor(
         address depositToken,
         uint256 streamId,
-        uint32 _transferStartTime;
+        uint32 _transferStartTime
     ) {
 
         // L + depositTokenName + streamId = LUSD Coin-1
-        name = string(abi.encodePacked("locke ", IERC20(depositToken).name(), ":", streamdId));
+        name = string(abi.encodePacked("locke", ERC20(depositToken).name(), ": ", toString(streamId)));
         // L + Symbol + streamId = LUSDC1
         // TODO: we could have start_time+stream_duration+depositlocktime as maturity-date
         // i.e. LETH8-AUG-14-2022
-        symbol = string(abi.encodePacked("locke", IERC20(depositToken).symbol(), streamdId));
+        symbol = string(abi.encodePacked("locke", ERC20(depositToken).symbol(), toString(streamId)));
         decimals = 18;
 
         transferStartTime = _transferStartTime;
@@ -203,5 +205,33 @@ abstract contract ERC20 {
         }
 
         emit Transfer(from, address(0), amount);
+    }
+
+
+    // Helpers
+    function toString(uint _i)
+        internal
+        pure
+        returns (string memory) 
+    {
+        if (_i == 0) {
+            return "0";
+        }
+        uint j = _i;
+        uint len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(len);
+        uint k = len;
+        while (_i != 0) {
+            k = k-1;
+            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+            bytes1 b1 = bytes1(temp);
+            bstr[k] = b1;
+            _i /= 10;
+        }
+        return string(bstr);
     }
 }

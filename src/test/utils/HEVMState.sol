@@ -1,6 +1,6 @@
 pragma solidity >=0.8.0;
 
-import Hevm from "./Hevm.sol";
+import {Hevm} from "./Hevm.sol";
 
 contract HEVMState {
     bytes20 constant CHEAT_CODE =

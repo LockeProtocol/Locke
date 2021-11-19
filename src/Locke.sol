@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-import "./ERC20.sol";
+import "./LockeERC20.sol";
 import "solmate/utils/SafeTransferLib.sol";
+import "solmate/tokens/ERC20.sol";
 
 // ====== Governance =====
 contract Governed {
@@ -61,14 +62,14 @@ contract Governed {
 }
 
 interface IGoverned {
-    function gov() public view returns (address);
-    function emergency_gov() public view returns (address);
+    function gov() external view returns (address);
+    function emergency_gov() external view returns (address);
 }
 
-contract ExternallyGoverned {
+abstract contract ExternallyGoverned {
     IGoverned public gov;
 
-    constructor(address iGovernor) public {
+    constructor(address governor) {
         gov = IGoverned(governor);
     }
 
@@ -87,8 +88,8 @@ contract ExternallyGoverned {
 }
 
 // ====== Stream =====
-contract Stream is ERC20, ExternallyGoverned {
-    
+contract Stream is LockeERC20, ExternallyGoverned {
+    using SafeTransferLib for ERC20;    
     // ======= Structs ========
     struct StreamParams {
         uint32 startTime;
@@ -97,57 +98,85 @@ contract Stream is ERC20, ExternallyGoverned {
         uint32 rewardLockDuration;
     }
 
-
-    // ======= Storage ========
-    uint112 private rewardTokenAmount;
-    uint112 private depositTokenAmount;
-    uint16 private feePercent;
-    bool private feeEnabled;
-    bool private isSale;
-
-    uint112 private rewardTokenFeeAmount;
-
     struct TokenStream {
         uint112 tokens;
         uint32 lastUpdate;
     }
-    // mapping of address to number of tokens not yet streamed over
-    mapping (address => TokenStream) tokensNotYetStreamed;
 
+    // ======= Storage ========
+    // slot a
+    address public rewardToken;
+
+    // slot b
+    address public depositToken;
+    uint64 public streamId;
+
+    // sloc c
+    uint112 private rewardTokenAmount;
+    uint112 private depositTokenAmount;
+    uint16 private feePercent;
+    bool private feeEnabled;
+    bool public isSale; // unrelated so make it public
+
+    // slot d
+    uint112 private rewardTokenFeeAmount;
+
+    // slot e
     StreamParams public streamParams;
 
+    // mapping of address to number of tokens not yet streamed over
+    mapping (address => TokenStream) public tokensNotYetStreamed;
 
+    // ======= Events ========
     event StreamFunded(uint256 amount);
     event Staked(address indexed who, uint256 amount);
 
+    // ======= Modifiers ========
     modifier updateStream(address who) {
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
-        uint32 time_delta = block.timestamp - ts.lastUpdate;
+        uint32 time_delta = uint32(block.timestamp) - ts.lastUpdate;
         
         _;
     }
 
     constructor(
-        uint64 streamId,
+        uint64 _streamId,
         address creator,
-        address rewardToken,
-        address depositToken,
+        address _rewardToken,
+        address _depositToken,
         uint32 startTime,
         uint32 streamDuration,
         uint32 depositLockDuration,
         uint32 rewardLockDuration,
-        uint16 feePercent,
-        bool feeEnabled,
-        bool isSale
+        uint16 _feePercent,
+        bool _feeEnabled,
+        bool _isSale
     )
-        ERC20(depositToken, streamId, startTime + streamDuration)
+        LockeERC20(_depositToken, _streamId, startTime + streamDuration)
+        ExternallyGoverned(creator)
         public 
     {
         require(feePercent < 10000, "rug:fee");
+        streamParams = StreamParams({
+            startTime: startTime, 
+            streamDuration: streamDuration, 
+            depositLockDuration: depositLockDuration, 
+            rewardLockDuration: rewardLockDuration
+        });
+        depositToken = _depositToken;
+        rewardToken = _rewardToken;
+        streamId = _streamId;
+        feePercent = _feePercent;
+        feeEnabled = _feeEnabled;
+        isSale = _isSale;
     }
 
     function tokenAmounts() public view returns (uint112, uint112, uint112) {
         return (rewardTokenAmount, depositTokenAmount, rewardTokenFeeAmount);
+    }
+
+    function feeParams() public view returns (uint16, bool) {
+        return (feePercent, feeEnabled);
     }
 
     /**
@@ -155,16 +184,17 @@ contract Stream is ERC20, ExternallyGoverned {
     **/
     function fundStream(uint112 amount) public {
         require(amount > 0, "fund:poor");
-        require(block.timestamp < startTime, ">time");
-        uint256 amt;
+        require(block.timestamp < streamParams.startTime, ">time");
+        uint112 amt;
         // if fee is enabled, take a fee
         if (feeEnabled) {
             // Safety:
             //  1. feePercent & y are casted up to u256, so cannot overflow when multiplying
             //  2. downcast is safe because (x*y)/MAX_X is guaranteed to be smaller than y which is uint112
             //  3. amount is guaranteed to be greater than feeAmt
+            uint112 feeAmt;
             unchecked {
-                uint112 feeAmt = uint112(uint256(feePercent) * uint256(amount) / 10000); 
+                feeAmt = uint112(uint256(feePercent) * uint256(amount) / 10000); 
                 amt = amount - feeAmt;
             }
 
@@ -173,7 +203,7 @@ contract Stream is ERC20, ExternallyGoverned {
             rewardTokenAmount += amt;
         } else {
             amt = amount;
-            rewardTokenAmount += amount;
+            rewardTokenAmount += amt;
         }
         // transfer from sender
         uint256 prevBal = ERC20(rewardToken).balanceOf(address(this));
@@ -182,8 +212,10 @@ contract Stream is ERC20, ExternallyGoverned {
         require(newBal > prevBal, "rug:bal");
 
         if (newBal < prevBal + amount) {
+            uint256 attempted = prevBal + amount;
+            require(attempted <= type(uint112).max, "rug:erc20");
             // some kind of fee on transfer token, we got less than expected
-            uint256 delta = (prevBal + amount) - newBal;
+            uint112 delta = uint112(attempted - newBal);
             // if the rewardToken takes a fee on transfer, likely
             // the rewarder is the one in control of the impl. We only charge their
             // rewards because of that fact
@@ -191,20 +223,21 @@ contract Stream is ERC20, ExternallyGoverned {
             amt -= delta;
         }
         
-        emit StreamFunded(amt)
+        emit StreamFunded(amt);
     }
 
     function stake(uint112 amount) public updateStream(msg.sender) {
         require(amount > 0, "stake:poor");
-        require(block.timestamp < startTime + streamDuration, "stake:!stream");
+        require(block.timestamp < streamParams.startTime + streamParams.streamDuration, "stake:!stream");
 
         // transfer tokens over
         uint256 prevBal = ERC20(depositToken).balanceOf(address(this));
         ERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         uint256 newBal = ERC20(depositToken).balanceOf(address(this));
+        require(newBal <= type(uint112).max, "rug:erc20");
         require(newBal > prevBal, "rug:bal");
         
-        uint256 trueDepositAmt = newBal - prevBal;
+        uint112 trueDepositAmt = uint112(newBal - prevBal);
 
         depositTokenAmount += trueDepositAmt;
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
@@ -224,7 +257,7 @@ contract Stream is ERC20, ExternallyGoverned {
     }
 
 
-    function recoverTokens(address token, address receipient) public externallyGoverned {
+    function recoverTokens(address token, address recipient) public externallyGoverned {
         // ░░░░░░░░▄▄██▀▀▀▀▀▀▀████▄▄▄▄░░░░░░░░░░░░░
         // ░░░░░▄██▀░░░░░░░░░░░░░░░░░▀▀██▄▄░░░░░░░░
         // ░░░░██░░░░░░░░░░░░░░░░░░░░░░░░▀▀█▄▄░░░░░
@@ -245,17 +278,17 @@ contract Stream is ERC20, ExternallyGoverned {
         // ░░░░░░░░░░▀▀█▀▀███▄▄▄███▀▀▀░░░░░░░░░░░░░
         // ░░░░░░░░░░░█▀░░░░░░░░░░░░░░░░░░░░░░░░░░░
         if (token == depositToken) {
-            if (block.timestamp > startTime + streamDuration + depositLockDuration) {
+            if (block.timestamp > streamParams.startTime + streamParams.streamDuration + streamParams.depositLockDuration) {
                 if (!isSale) {
                     // is not a sale and this contract is done so the deposit token can be saved
                     uint256 bal = ERC20(token).balanceOf(address(this));
-                    ERC20(token).safeTransfer(bal, recipient);
+                    ERC20(token).safeTransfer(recipient, bal);
                     return;
                 } else {
                     // is a sale. check current balance vs internal balance
                     uint256 bal = ERC20(token).balanceOf(address(this));
-                    uint256 excess = bal - totalDeposits;
-                    ERC20(token).safeTransfer(excess, recipient);
+                    uint256 excess = bal - depositTokenAmount;
+                    ERC20(token).safeTransfer(recipient, excess);
                     return;
                 }
             } else {
@@ -273,13 +306,13 @@ contract Stream is ERC20, ExternallyGoverned {
             // and recover the excess (if it is worth anything)
             uint256 bal = ERC20(token).balanceOf(address(this));
             uint256 excess = bal - (rewardTokenAmount + rewardTokenFeeAmount);
-            ERC20(token).safeTransfer(excess, recipient);
+            ERC20(token).safeTransfer(recipient, excess);
             return;
         }
 
         // not reward token nor deposit token, free to transfer
         uint256 bal = ERC20(token).balanceOf(address(this));
-        ERC20(token).safeTransfer(bal, recipient);
+        ERC20(token).safeTransfer(recipient, bal);
     }
 }
 
@@ -297,14 +330,13 @@ contract StreamFactory is Governed {
         uint16 feePercent;
         bool feeEnabled;
     }
-
-    uint16 constant MAX_FEE_PERCENT = 500; // 500/10000 == 5%
     
     // ======= Storage ========
     GovernableStreamParams public streamParams;
     GovernableFeeParams public feeParams;
-    uint128 public currStreamId; 
+    uint64 public currStreamId; 
 
+    uint16 constant MAX_FEE_PERCENT = 500; // 500/10000 == 5%
 
     // =======  Events  =======
     event StreamCreated(uint256 indexed stream_id, address stream_addr);
@@ -313,8 +345,8 @@ contract StreamFactory is Governed {
 
     constructor(address _governor, address _emergency_governor) public Governed(_governor, _emergency_governor) {
         streamParams = GovernableStreamParams({
-            maxDepositLockDuration: 1 years,
-            maxRewardLockDuration: 1 years,
+            maxDepositLockDuration: 52 weeks,
+            maxRewardLockDuration: 52 weeks,
             maxStreamDuration: 2 weeks,
             minStreamDuration: 1 hours
         });
@@ -333,22 +365,23 @@ contract StreamFactory is Governed {
         uint32 streamDuration,
         uint32 depositLockDuration,
         uint32 rewardLockDuration,
-        bool isSale,
+        bool isSale
     )
         public
         returns (Stream)
     {
         // perform checks
         require(startTime >= block.timestamp, "rug:past");
-        require(streamDuration >= minStreamDuration && streamDuration <= maxStreamDuration, "rug:streamDuration");
-        require(depositLockDuration <= maxDepositLockDuration, "rug:lockDuration");
-        require(rewardLockDuration <= maxRewardLockDuration, "rug:rewardDuration");
+        require(streamDuration >= streamParams.minStreamDuration && streamDuration <= streamParams.maxStreamDuration, "rug:streamDuration");
+        require(depositLockDuration <= streamParams.maxDepositLockDuration, "rug:lockDuration");
+        require(rewardLockDuration <= streamParams.maxRewardLockDuration, "rug:rewardDuration");
 
         // TODO: figure out sane salt, i.e. streamid + x? streamid guaranteed to be unique
-        uint128 that_stream = currStreamId;
+        uint64 that_stream = currStreamId;
         bytes32 salt = bytes32(uint256(that_stream));
 
         Stream stream = new Stream{salt: salt}(
+            that_stream,
             msg.sender,
             rewardToken,
             depositToken,
@@ -358,14 +391,14 @@ contract StreamFactory is Governed {
             rewardLockDuration,
             feeParams.feePercent,
             feeParams.feeEnabled,
-            isSale,
+            isSale
         );
 
         // bump stream id
         currStreamId += 1;
 
         // emit
-        emit StreamCreated(that_stream, stream_addr);
+        emit StreamCreated(that_stream, address(stream));
 
         return stream;
     }

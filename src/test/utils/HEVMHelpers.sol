@@ -2,65 +2,6 @@ pragma solidity >=0.8.0;
 
 import "ds-test/test.sol";
 import "./HEVMState.sol";
-import "./HEVMTokenExtension.sol";
-
-contract TestHelpers is TokenExtensions {
-    function expect_revert_with(
-        address who,
-        string memory sig,
-        bytes memory args,
-        string memory revert_string
-    )
-        public
-    {
-        bytes memory calld = abi.encodePacked(sigs(sig), args);
-        (bool success, bytes memory ret) = who.call(calld);
-        assertTrue(!success);
-        string memory ret_revert_string = abi.decode(slice(5, ret.length, ret), (string));
-        assertEq(ret_revert_string, revert_string);
-    }
-
-    // In a passing test, expect a revert with a string (takes a function signature and args and *is* payable)
-    function expect_revert_with(
-        address who,
-        string memory sig,
-        bytes memory args,
-        uint256 value,
-        string memory revert_string
-    )
-        public
-    {
-        bytes memory calld = abi.encodePacked(sigs(sig), args);
-        (bool success, bytes memory ret) = who.call.value(value)(calld);
-        assertTrue(!success);
-        string memory ret_revert_string = abi.decode(slice(5, ret.length, ret), (string));
-        assertEq(ret_revert_string, revert_string);
-    }
-
-    // pass as a 4byte function signature instead
-    function expect_revert_with(
-        address who,
-        bytes4 sig,
-        bytes memory args,
-        string memory revert_string
-    )
-        public
-    {
-        bytes memory calld = abi.encodePacked(sig, args);
-        (bool success, bytes memory ret) = who.call(calld);
-        assertTrue(!success);
-        string memory ret_revert_string = abi.decode(slice(5, ret.length, ret), (string));
-        assertEq(ret_revert_string, revert_string);
-    }
-
-    function slice(uint256 begin, uint256 end, bytes memory text) public pure returns (bytes memory) {
-       bytes memory a = new bytes(end - begin + 1);
-       for(uint i=0 ; i <= end - begin; i++) {
-           a[i] = bytes(text)[i + begin - 1];
-       }
-       return a;
-   }
-}
 
 contract HEVMHelpers is HEVMState, DSTest {
 
@@ -188,7 +129,7 @@ contract HEVMHelpers is HEVMState, DSTest {
                 sig,
                 ins,
                 who,
-                bytes32(uint256(0xaaaCfBec6a24756c20D41914f2CABA817C0d8521))
+                bytes32(uint256(uint160(0xaaaCfBec6a24756c20D41914f2CABA817C0d8521)))
             );
         }
         writ(
@@ -196,7 +137,7 @@ contract HEVMHelpers is HEVMState, DSTest {
             ins,
             0,
             who,
-            bytes32(uint256(value))
+            bytes32(uint256(uint160(value)))
         );
     }
 
@@ -222,7 +163,7 @@ contract HEVMHelpers is HEVMState, DSTest {
 
     function write_map(address who, string memory sig, uint256 key, address value) public {
         bytes32[] memory keys = new bytes32[](1);
-        keys[0] = bytes32(uint256(key));
+        keys[0] = bytes32(uint256(uint160(key)));
         if (!finds[who][sigs(sig)]) {
             find(
                 sig,
@@ -236,14 +177,14 @@ contract HEVMHelpers is HEVMState, DSTest {
             keys,
             0,
             who,
-            bytes32(uint256(value))
+            bytes32(uint256(uint160(value)))
         );
     }
 
 
     function write_map(address who, string memory sig, address key, uint256 value) public {
         bytes32[] memory keys = new bytes32[](1);
-        keys[0] = bytes32(uint256(key));
+        keys[0] = bytes32(uint256(uint160(key)));
         if (!finds[who][sigs(sig)]) {
             find(
                 sig,
@@ -263,7 +204,7 @@ contract HEVMHelpers is HEVMState, DSTest {
 
     function write_map(address who, string memory sig, address key, address value) public {
         bytes32[] memory keys = new bytes32[](1);
-        keys[0] = bytes32(uint256(key));
+        keys[0] = bytes32(uint256(uint160(key)));
         if (!finds[who][sigs(sig)]) {
             find(
                 sig,
@@ -277,7 +218,7 @@ contract HEVMHelpers is HEVMState, DSTest {
             keys,
             0,
             who,
-            bytes32(uint256(value))
+            bytes32(uint256(uint160(value)))
         );
     }
 
@@ -313,7 +254,7 @@ contract HEVMHelpers is HEVMState, DSTest {
             keys,
             0,
             who,
-            bytes32(uint256(value))
+            bytes32(uint256(uint160(value)))
         );
     }
 
@@ -349,7 +290,7 @@ contract HEVMHelpers is HEVMState, DSTest {
             keys,
             depth,
             who,
-            bytes32(uint256(value))
+            bytes32(uint256(uint160(value)))
         );
     }
 

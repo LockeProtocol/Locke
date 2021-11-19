@@ -1,4 +1,3 @@
 @openzeppelin/=lib/openzeppelin-contracts/
 ds-test/=lib/ds-test/src/
-gnosisV2/=lib/gp-v2-contracts/src/contracts/
 solmate/=lib/solmate/src/

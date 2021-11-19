@@ -1,7 +1,8 @@
+pragma solidity ^0.8.0;
 
-import "../HEVMState.sol";
+import "./HEVMState.sol";
 import "solmate/tokens/ERC20.sol";
-
+import { HEVMHelpers } from "./HEVMHelpers.sol";
 
 interface Checkpointing {
 	function numCheckpoints ( address ) external view returns ( uint32 );
@@ -48,10 +49,10 @@ contract TokenExtensions is HEVMHelpers {
     // manually writes a checkpoint in a checkpointing token
     function write_checkpoint(address checkpointToken, address account, uint256 checkpoint, uint256 fromBlock, uint256 bal) public {
         bytes32[] memory keys = new bytes32[](2);
-        keys[0] = bytes32(uint256(account));
-        keys[1] = bytes32(uint256(safe32(checkpoint, "")));
-        write_deep_map_struct(address(govToken), "checkpoints(address,uint32)", keys, fromBlock, 0);
-        write_deep_map_struct(address(govToken), "checkpoints(address,uint32)", keys, bal, 1);
+        keys[0] = bytes32(uint256(uint160(account)));
+        keys[1] = bytes32(uint256(uint32(checkpoint)));
+        write_deep_map_struct(address(checkpointToken), "checkpoints(address,uint32)", keys, fromBlock, 0);
+        write_deep_map_struct(address(checkpointToken), "checkpoints(address,uint32)", keys, bal, 1);
     }
 
     function write_last_checkpoint(address checkpointToken, address account, uint256 votes) public {
@@ -60,8 +61,8 @@ contract TokenExtensions is HEVMHelpers {
           lcp = lcp - 1;
         }
         bytes32[] memory keys = new bytes32[](2);
-        keys[0] = bytes32(uint256(account));
-        keys[1] = bytes32(uint256(safe32(lcp, "")));
+        keys[0] = bytes32(uint256(uint160(account)));
+        keys[1] = bytes32(uint256(uint32(lcp)));
         write_deep_map_struct(checkpointToken, "checkpoints(address,uint32)", keys, votes, 1);
         if (lcp == 0) {
           write_deep_map_struct(checkpointToken, "checkpoints(address,uint32)", keys, block.number - 1, 0);
