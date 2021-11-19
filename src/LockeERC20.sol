@@ -59,11 +59,11 @@ abstract contract LockeERC20 {
         uint32 endStream
     ) {
 
-        // L + depositTokenName + streamId = LUSD Coin-1
+        // locke + depositTokenName + streamId = lockeUSD Coin-1
         name = string(abi.encodePacked("locke", ERC20(depositToken).name(), ": ", toString(streamId)));
-        // L + Symbol + streamId = LUSDC1
+        // locke + Symbol + streamId = lockeUSDC1
         // TODO: we could have start_time+stream_duration+depositlocktime as maturity-date
-        // i.e. LETH8-AUG-14-2022
+        // i.e. lockeETH8-AUG-14-2022
         symbol = string(abi.encodePacked("locke", ERC20(depositToken).symbol(), toString(streamId)));
         decimals = 18;
 

@@ -167,7 +167,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
     event FeesClaimed(address who, uint256 amount);
     event RecoveredTokens(address indexed token, address indexed recipient, uint256 amount);
     event RewardsClaimed(address indexed who, uint256 amount);
-    
+
     // ======= Modifiers ========
     modifier updateStream(address who) {
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
@@ -471,11 +471,9 @@ contract Stream is LockeERC20, ExternallyGoverned {
 
         require(bal > 0, "claim:poor");
 
-        // get % of deposit tokens
-        uint256 percentRewards = bal * 10**18 / depositTokenAmount;
-
-        // calculate (% of depositTokens) * rewardTokenAmount / 10**18
-        uint256 rewardAmt = percentRewards * rewardTokenAmount / 10**18;
+        // (bal / depositTokenAmt) * rewardTokenAmount -> (bal * rewardTokenAmount) / depositTokenAmt to reduce
+        // loss of precision
+        uint256 rewardAmt = bal * rewardTokenAmount / depositTokenAmount;
 
         // transfer the tokens
         ERC20(rewardToken).safeTransfer(msg.sender, rewardAmt);
