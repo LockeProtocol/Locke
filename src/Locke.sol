@@ -126,6 +126,12 @@ contract Stream is LockeERC20, ExternallyGoverned {
     uint16 private immutable feePercent;
     // are fees enabled
     bool private immutable feeEnabled;
+
+    // deposits are basically a *sale* to the stream creator if true
+    bool public immutable isSale;
+
+    // stream creator
+    address public immutable streamCreator;
     // ============
 
     //  == sloc a ==
@@ -133,17 +139,16 @@ contract Stream is LockeERC20, ExternallyGoverned {
     uint112 private rewardTokenAmount;
     // internal deposit token amount locked/to be sold to stream creator
     uint112 private depositTokenAmount;
-    // deposits are basically a *sale* to the stream creator
-    bool public isSale;
     // ============
 
     // == slot b ==
     uint112 private rewardTokenFeeAmount;
+    uint112 private claimedDepositTokens;
     // ============
 
-    // == slot c ==
-    address public streamCreator;
-    // ============
+    // mapping of address to number of depositTokens deposited if this was a sale
+    // used for rewards calculation
+    mapping (address => uint112) public rewards;
 
     // mapping of address to number of tokens not yet streamed over
     mapping (address => TokenStream) public tokensNotYetStreamed;
@@ -161,7 +166,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
     event DepositTokensReclaimed(address indexed who, uint256 amount);
     event FeesClaimed(address who, uint256 amount);
     event RecoveredTokens(address indexed token, address indexed recipient, uint256 amount);
-
+    event RewardsClaimed(address indexed who, uint256 amount);
+    
     // ======= Modifiers ========
     modifier updateStream(address who) {
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
@@ -213,6 +219,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
 
         // set sale info
         isSale = _isSale;
+
+        streamCreator = creator;
     }
 
     /**
@@ -229,6 +237,9 @@ contract Stream is LockeERC20, ExternallyGoverned {
         return (feePercent, feeEnabled);
     }
 
+    /**
+     * @dev Returns stream parameters
+    **/
     function streamParams() public view returns (uint32,uint32,uint32,uint32) {
         return (
             startTime,
@@ -314,7 +325,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
             // not a straight sale, so give the user some receipt tokens
             _mint(msg.sender, receiptTokenAmt);
         } else {
-            // we don't mint if it is a sale.
+            // we don't mint if it is a sale, just add to rewards to save gas
+            rewards[msg.sender] += trueDepositAmt;
         }
 
         emit Staked(msg.sender, trueDepositAmt);
@@ -339,6 +351,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
             _burn(msg.sender, amount);
         } else {
             // The user doesnt have any tokens when its a sale.
+            // just decrement rewards
+            rewards[msg.sender] -= amount;
         }
 
         // do the transfer
@@ -365,6 +379,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
             _burn(msg.sender, amount);
         } else {
             // The user doesnt have any tokens when its a sale.
+            // just decrement rewards
+            rewards[msg.sender] -= amount;
         }
 
         // do the transfer
@@ -415,13 +431,13 @@ contract Stream is LockeERC20, ExternallyGoverned {
     }
 
     /**
-     *  @dev Allows a receipt token hold to reclaim deposit tokens if the deposit lock is done & their receiptToken amount
+     *  @dev Allows a receipt token holder to reclaim deposit tokens if the deposit lock is done & their receiptToken amount
      *  is greater than the requested amount
     */ 
     function claimDepositTokens(uint112 amount) public {
+        require(!isSale, "claim:sale");
         // NOTE: given that endDepositLock is strictly *after* the last time withdraw or exit is callable
         // we dont need to updateStream(msg.sender)
-
         require(amount > 0, "claim:poor");
 
         // is the stream over + the deposit lock period over? thats the only time receiptTokens can be burned for depositTokens after stream is over
@@ -437,6 +453,37 @@ contract Stream is LockeERC20, ExternallyGoverned {
     }
 
     /**
+     *  @dev Allows a receipt token holder (or original depositor in case of a sale) to claim their rewardTokens
+    */ 
+    function claimReward() public {
+        require(block.timestamp > endRewardLock, "claim:lock");
+
+        uint256 bal;
+        // if its not a sale, use balanceOf receipt tokens. otherwise use
+        // rewards map. burn entirety of rewards/balance
+        if (!isSale) {
+            bal = balanceOf[msg.sender];
+            _burn(msg.sender, bal);
+        } else {
+            bal = rewards[msg.sender];
+            rewards[msg.sender] = 0;
+        }
+
+        require(bal > 0, "claim:poor");
+
+        // get % of deposit tokens
+        uint256 percentRewards = bal * 10**18 / depositTokenAmount;
+
+        // calculate (% of depositTokens) * rewardTokenAmount / 10**18
+        uint256 rewardAmt = percentRewards * rewardTokenAmount / 10**18;
+
+        // transfer the tokens
+        ERC20(rewardToken).safeTransfer(msg.sender, rewardAmt);
+
+        emit RewardsClaimed(msg.sender, rewardAmt);
+    }
+
+    /**
      *  @dev Allows a creator to claim sold tokens if the stream has ended & this contract is a sale
     */ 
     function creatorClaimSoldTokens(address destination) public {
@@ -447,9 +494,12 @@ contract Stream is LockeERC20, ExternallyGoverned {
         // stream ended
         require(block.timestamp >= endStream, "claim:stream");
         
-        uint112 amount = depositTokenAmount;
-        depositTokenAmount = 0;
-        ERC20(depositToken).safeTransfer(destination, depositTokenAmount);
+        // depositTokenAmount remains a high water mark for reward distribution
+        // so we just increment the claimedDepositTokens
+        uint112 amount = depositTokenAmount - claimedDepositTokens;
+        claimedDepositTokens += amount;
+
+        ERC20(depositToken).safeTransfer(destination, amount);
 
         emit SoldTokensClaimed(destination, amount);
     }
