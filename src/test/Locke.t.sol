@@ -25,11 +25,11 @@ contract StreamTest is LockeTest {
                 minStreamDuration,
                 maxDepositLockDuration,
                 0,
-                false
+                false,
+                false,
+                bytes32(0)
             );
 
-
-            
             testTokenA.approve(address(stream), type(uint256).max);
             // ===   ===
 
@@ -83,7 +83,9 @@ contract StreamTest is LockeTest {
                 minStreamDuration,
                 maxDepositLockDuration,
                 0,
-                false
+                false,
+                false,
+                bytes32(0)
             );
 
             testTokenA.approve(address(stream), type(uint256).max);
@@ -115,7 +117,9 @@ contract StreamTest is LockeTest {
             minStreamDuration,
             maxDepositLockDuration,
             0,
-            false
+            false,
+            false,
+            bytes32(0)
         );
 
         testTokenB.approve(address(stream), type(uint256).max);
@@ -136,7 +140,7 @@ contract StreamTest is LockeTest {
                 address(stream),
                 sig,
                 abi.encode(100),
-                "stake:!stream"
+                "!stream"
             );
             hevm.warp(startTime - minStreamDuration);
 
@@ -159,7 +163,7 @@ contract StreamTest is LockeTest {
             (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount) = stream.tokenAmounts();
             assertEq(depositTokenAmount, 100);
 
-            (uint112 tokens, uint32 lu) = stream.tokensNotYetStreamed(address(this));
+            (uint112 tokens, uint32 lu, ) = stream.tokensNotYetStreamed(address(this));
             assertEq(tokens, 100);
         }
         {            
@@ -171,7 +175,9 @@ contract StreamTest is LockeTest {
                 minStreamDuration,
                 maxDepositLockDuration,
                 0,
-                true
+                true,
+                false,
+                bytes32(0)
             );
             testTokenB.approve(address(stream), type(uint256).max);
             stream.stake(100);
@@ -181,7 +187,7 @@ contract StreamTest is LockeTest {
 
             (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount) = stream.tokenAmounts();
             assertEq(depositTokenAmount, 100);
-            (uint112 tokens, uint32 lu) = stream.tokensNotYetStreamed(address(this));
+            (uint112 tokens, uint32 lu, ) = stream.tokensNotYetStreamed(address(this));
             assertEq(tokens, 100);
         }
     }
@@ -211,7 +217,9 @@ contract StreamFactoryTest is LockeTest {
                     0,
                     0,
                     0,
-                    false
+                    false,
+                    false,
+                    bytes32(0)
                 ),
                 "rug:past"
             );
@@ -227,7 +235,9 @@ contract StreamFactoryTest is LockeTest {
                         minStreamDuration - 1,
                         0,
                         0,
-                        false
+                        false,
+                        false,
+                        bytes32(0)
                     ),
                     "rug:streamDuration"
                 );
@@ -243,7 +253,9 @@ contract StreamFactoryTest is LockeTest {
                     maxStreamDuration + 1,
                     0,
                     0,
-                    false
+                    false,
+                    false,
+                    bytes32(0)
                 ),
                 "rug:streamDuration"
             );
@@ -258,7 +270,9 @@ contract StreamFactoryTest is LockeTest {
                     minStreamDuration,
                     maxDepositLockDuration + 1,
                     0,
-                    false
+                    false,
+                    false,
+                    bytes32(0)
                 ),
                 "rug:lockDuration"
             );
@@ -273,7 +287,9 @@ contract StreamFactoryTest is LockeTest {
                     minStreamDuration,
                     maxDepositLockDuration,
                     maxRewardLockDuration + 1,
-                    false
+                    false,
+                    false,
+                    bytes32(0)
                 ),
                 "rug:rewardDuration"
             );
@@ -291,7 +307,9 @@ contract StreamFactoryTest is LockeTest {
                 minStreamDuration,
                 maxDepositLockDuration,
                 0,
-                false
+                false,
+                false,
+                bytes32(0)
             );
 
             (uint16 feePercent, bool feeEnabled) = defaultStreamFactory.feeParams();
@@ -311,7 +329,9 @@ contract StreamFactoryTest is LockeTest {
                         0,
                         feePercent,
                         feeEnabled,
-                        false
+                        false,
+                        false,
+                        bytes32(0)
                     )
                 )
             );
@@ -369,7 +389,9 @@ contract StreamFactoryTest is LockeTest {
                 minStreamDuration,
                 maxDepositLockDuration,
                 0,
-                false
+                false,
+                false,
+                bytes32(0)
             );
 
             (uint16 feePercent, bool feeEnabled) = defaultStreamFactory.feeParams();
@@ -389,7 +411,9 @@ contract StreamFactoryTest is LockeTest {
                         0,
                         feePercent,
                         feeEnabled,
-                        false
+                        false,
+                        false,
+                        bytes32(0)
                     )
                 )
             );
