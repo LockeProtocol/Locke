@@ -97,6 +97,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
     using SafeTransferLib for ERC20;    
     // ======= Structs ========
     struct TokenStream {
+        uint256 lastCumulativeRewardPerToken;
+        uint256 virtualBalance;
         uint112 tokens;
         uint32 lastUpdate;
         bool merkleAccess;
@@ -142,6 +144,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
     // allows for a merkle staking restriction
     bool private immutable merkleAccessOnly;
     bytes32 private immutable merkleRoot;
+
+    uint112 private immutable depositDecimalsOne;
     // ============
 
     //  == sloc a ==
@@ -159,9 +163,20 @@ contract Stream is LockeERC20, ExternallyGoverned {
     // ============
 
     // == slot c ==
-    uint112 private unstreamed;
+    uint256 private cumulativeRewardPerToken;
+    // =====
+
+    // ===
+    uint256 private totalVirtualBalance;
+    // ==
+
+    // ==
+    uint112 public unstreamed;
+    uint112 private redeemedDepositTokens;
     uint32 private lastUpdate;
     // ============
+
+    uint256 priceTimeAccumulator;
 
     // mapping of address to number of depositTokens deposited if this was a sale
     // used for rewards calculation
@@ -190,25 +205,51 @@ contract Stream is LockeERC20, ExternallyGoverned {
     modifier updateStream(address who) {
         require(block.timestamp < endStream , "!stream");
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
-        uint32 acctTimeDelta = uint32(block.timestamp) - ts.lastUpdate;
 
-        if (acctTimeDelta > 0) {
-            if (ts.tokens > 0) {
-                // some time has passed since this user last interacted
-                // update ts not yet streamed
-                uint112 acctStreamingSpeedPerSecond = uint112(ts.tokens / (endStream - block.timestamp));
-                ts.tokens -= acctTimeDelta * acctStreamingSpeedPerSecond;
+        if (block.timestamp >= startTime) {
+            // set lastUpdates if need be
+            if (ts.lastUpdate == 0) {
                 ts.lastUpdate = uint32(block.timestamp);
             }
-        }
-
-        uint32 tdelta = uint32(block.timestamp - lastUpdate);
-        if (tdelta > 0) {
-            if (unstreamed > 0) {
-                // some time has passed
-                uint112 globalStreamingSpeedPerSecond = unstreamed / streamDuration;
-                unstreamed -= tdelta * globalStreamingSpeedPerSecond;
+            if (lastUpdate == 0) {
                 lastUpdate = uint32(block.timestamp);
+            }
+
+            // accumulate reward per token info
+            cumulativeRewardPerToken = rewardPerToken();
+
+            // update user rewards
+            rewards[msg.sender] = earned(ts, cumulativeRewardPerToken);
+            // update users last cumulative reward per token
+            ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;
+
+            // update users unstreamed balance
+            uint32 acctTimeDelta = uint32(block.timestamp) - ts.lastUpdate;
+            if (acctTimeDelta > 0) {
+                if (ts.tokens > 0) {
+                    // some time has passed since this user last interacted
+                    // update ts not yet streamed
+                    ts.tokens -= uint112(acctTimeDelta * ts.tokens / (endStream - ts.lastUpdate));
+                    ts.lastUpdate = uint32(block.timestamp);
+                }
+            }
+
+            // handle global unstreamed
+            uint32 tdelta = uint32(block.timestamp - lastUpdate);
+            // stream tokens over
+            if (tdelta > 0) {
+                if (unstreamed > 0) {
+                    uint256 globalStreamingSpeedPerSecond = (uint256(unstreamed) * 10**6)/ (endStream - lastUpdate);
+                    unstreamed -= uint112((uint256(tdelta) * globalStreamingSpeedPerSecond) / 10**6);
+                }
+            }
+            lastUpdate = uint32(block.timestamp);
+        } else {
+            if (ts.lastUpdate == 0) {
+                ts.lastUpdate = startTime;
+            }
+            if (lastUpdate == 0) {
+                lastUpdate = startTime;
             }
         }
         _;
@@ -265,6 +306,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
 
         merkleAccessOnly = merkleParams.access;
         merkleRoot = merkleParams.root;
+
+        depositDecimalsOne = uint112(10**ERC20(depositToken).decimals());
     }
 
     /**
@@ -291,6 +334,32 @@ contract Stream is LockeERC20, ExternallyGoverned {
             depositLockDuration,
             rewardLockDuration
         );
+    }
+
+    function dilutedBalance(uint112 amount) public returns (uint256) {
+        // duration / timeRemaining * amount
+        if (block.timestamp < startTime) {
+            return amount;
+        } else {
+            uint32 timeRemaining = endStream - uint32(block.timestamp);
+            return ((uint256(streamDuration) * amount * 10**6) / timeRemaining) / 10**6;
+        }
+    }
+
+    function rewardPerToken() public view returns (uint256) {
+        if (totalVirtualBalance == 0) {
+            return cumulativeRewardPerToken;
+        } else {
+            // ∆time*rewardTokensPerSecond*oneDepositToken / totalVirtualBalance
+            return cumulativeRewardPerToken + (
+                ((uint256(block.timestamp) - lastUpdate) * (rewardTokenAmount/streamDuration) * depositDecimalsOne) 
+                / totalVirtualBalance
+            );
+        }
+    }
+
+    function earned(TokenStream storage ts, uint256 currCumRewardPerToken) internal view returns (uint112) {
+        return uint112(ts.virtualBalance * (currCumRewardPerToken - ts.lastCumulativeRewardPerToken) / depositDecimalsOne) + rewards[msg.sender];
     }
 
     /**
@@ -382,6 +451,10 @@ contract Stream is LockeERC20, ExternallyGoverned {
         depositTokenAmount += trueDepositAmt;
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
         ts.tokens += trueDepositAmt;
+
+        uint256 virtualBal = dilutedBalance(trueDepositAmt);
+        ts.virtualBalance += virtualBal;
+        totalVirtualBalance += virtualBal;
         unstreamed += trueDepositAmt;
 
 
@@ -391,8 +464,6 @@ contract Stream is LockeERC20, ExternallyGoverned {
             // not a straight sale, so give the user some receipt tokens
             _mint(msg.sender, receiptTokenAmt);
         } else {
-            // we don't mint if it is a sale, just add to rewards to save gas
-            rewards[msg.sender] += trueDepositAmt;
         }
 
         emit Staked(msg.sender, trueDepositAmt);
@@ -414,13 +485,14 @@ contract Stream is LockeERC20, ExternallyGoverned {
 
         require(ts.tokens >= amount, "withdraw:steal");
         ts.tokens -= amount;
+
+        uint256 virtualBal = dilutedBalance(amount);
+        ts.virtualBalance -= virtualBal;
+        totalVirtualBalance -= virtualBal;
         depositTokenAmount -= amount;
         if (!isSale) {
             _burn(msg.sender, amount);
         } else {
-            // The user doesnt have any tokens when its a sale.
-            // just decrement rewards
-            rewards[msg.sender] -= amount;
         }
 
         // do the transfer
@@ -441,15 +513,17 @@ contract Stream is LockeERC20, ExternallyGoverned {
         // require(block.timestamp < endStream, "withdraw:!stream");
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
         uint112 amount = ts.tokens;
+
         require(amount > 0, "withdraw:poor");
+        
         ts.tokens = 0;
+        totalVirtualBalance -= ts.virtualBalance;
+        ts.virtualBalance = 0;
+
         depositTokenAmount -= amount;
         if (!isSale) {
             _burn(msg.sender, amount);
         } else {
-            // The user doesnt have any tokens when its a sale.
-            // just decrement rewards
-            rewards[msg.sender] -= amount;
         }
 
         // do the transfer
@@ -515,6 +589,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
         // burn the receiptTokens
         _burn(msg.sender, amount);
 
+        redeemedDepositTokens += amount;
+
         // send the receipt token holder back the funds
         ERC20(depositToken).safeTransfer(msg.sender, amount);
 
@@ -527,22 +603,10 @@ contract Stream is LockeERC20, ExternallyGoverned {
     function claimReward() public lock {
         require(block.timestamp > endRewardLock, "claim:lock");
 
-        uint256 bal;
-        // if its not a sale, use balanceOf receipt tokens. otherwise use
-        // rewards map. burn entirety of rewards/balance
-        if (!isSale) {
-            bal = balanceOf[msg.sender];
-            _burn(msg.sender, bal);
-        } else {
-            bal = rewards[msg.sender];
-            rewards[msg.sender] = 0;
-        }
+        uint256 rewardAmt = rewards[msg.sender];
+        rewards[msg.sender] = 0;
 
-        require(bal > 0, "claim:poor");
-
-        // (bal / depositTokenAmt) * rewardTokenAmount -> (bal * rewardTokenAmount) / depositTokenAmt to reduce
-        // loss of precision
-        uint256 rewardAmt = bal * rewardTokenAmount / depositTokenAmount;
+        require(rewardAmt > 0, "claim:poor");
 
         // transfer the tokens
         ERC20(rewardToken).safeTransfer(msg.sender, rewardAmt);
@@ -612,7 +676,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
             // get the balance of this contract
             uint256 bal = ERC20(token).balanceOf(address(this));
             // check what isnt claimable by either party
-            uint256 excess = bal - depositTokenAmount;
+            uint256 excess = bal - (depositTokenAmount - redeemedDepositTokens);
             // allow saving of the token
             ERC20(token).safeTransfer(recipient, excess);
 
@@ -804,7 +868,7 @@ contract StreamFactory is Governed {
             depositToken: depositToken,
             rewardToken: rewardToken
         });
-        
+
         {
             require(sp.startTime >= block.timestamp, "rug:past");
             require(sp.streamDuration >= streamParams.minStreamDuration && sp.streamDuration <= streamParams.maxStreamDuration, "rug:streamDuration");

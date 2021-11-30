@@ -6,8 +6,26 @@ import { TestHelpers } from "./TestHelpers.sol";
 import "solmate/tokens/ERC20.sol";
 import "./TestToken.sol";
 
-contract User {
-    constructor(address _ctrct) {
+contract User is TestHelpers{
+    constructor() {
+    }
+
+    function doStake(Stream stream, address token, uint112 amount) public {
+        write_balanceOf_ts(address(token), address(this), amount);
+        ERC20(token).approve(address(stream), amount);
+        stream.stake(amount);
+    }
+
+    function doWithdraw(Stream stream, uint112 amount) public {
+        stream.withdraw(amount);
+    }
+
+    function doExit(Stream stream) public {
+        stream.exit();
+    }
+
+    function doClaimReward(Stream stream) public {
+        stream.claimReward();
     }
 }
 
@@ -33,6 +51,9 @@ abstract contract LockeTest is TestHelpers {
         assertEq(testTokenB.balanceOf(address(this)), 100*10**18);
 
         defaultStreamFactory = new StreamFactory(address(this), address(this));
+
+        alice = new User();
+        bob = new User();
 
     }
 
