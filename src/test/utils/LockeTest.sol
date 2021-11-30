@@ -65,9 +65,9 @@ abstract contract LockeTest is TestHelpers {
             4 weeks,
             26 weeks, // 6 months
             0,
-            false,
-            false,
-            bytes32(0)
+            false
+            // false,
+            // bytes32(0)
         );
     }
 }

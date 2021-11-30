@@ -79,7 +79,7 @@ abstract contract LockeERC20 {
 
     modifier transferabilityDelay {
         // ensure the time is after start time
-        require(block.timestamp >= transferStartTime, "transfer:stream");
+        require(block.timestamp >= transferStartTime, "stream");
         _;
     }
 
