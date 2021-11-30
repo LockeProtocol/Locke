@@ -51,6 +51,18 @@ contract TestHelpers is TokenExtensions {
         assertEq(ret_revert_string, revert_string);
     }
 
+    function expect_revert(
+        address who,
+        bytes4 sig,
+        bytes memory args
+    )
+        public
+    {
+        bytes memory calld = abi.encodePacked(sig, args);
+        (bool success, bytes memory ret) = who.call(calld);
+        assertTrue(!success);
+    }
+
     function slice(uint256 begin, uint256 end, bytes memory text) public pure returns (bytes memory) {
        bytes memory a = new bytes(end - begin + 1);
        for(uint i=0 ; i <= end - begin; i++) {

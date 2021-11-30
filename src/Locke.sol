@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
 import "lib/openzeppelin-contracts/contracts/utils/cryptography/MerkleProof.sol";
@@ -97,7 +97,7 @@ abstract contract ExternallyGoverned {
 }
 
 interface LockeCallee {
-    function lockeCall(address initiator, uint256 amount, bytes calldata data) external;
+    function lockeCall(address initiator, address token, uint256 amount, bytes calldata data) external;
 }
 
 // ====== Stream =====
@@ -323,8 +323,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
     /**
      * @dev Returns relevant internal token amounts
     **/
-    function tokenAmounts() public view returns (uint112, uint112, uint112) {
-        return (rewardTokenAmount, depositTokenAmount, rewardTokenFeeAmount);
+    function tokenAmounts() public view returns (uint112, uint112, uint112, uint112) {
+        return (rewardTokenAmount, depositTokenAmount, rewardTokenFeeAmount, depositTokenFlashloanFeeAmount);
     }
 
     /**
@@ -356,7 +356,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
         } else {
             // ∆time*rewardTokensPerSecond*oneDepositToken / totalVirtualBalance
             return cumulativeRewardPerToken + (
-                ((uint256(lastApplicableTime()) - lastUpdate) * (rewardTokenAmount/streamDuration) * depositDecimalsOne) 
+                ((uint256(lastApplicableTime()) - lastUpdate) * rewardTokenAmount * depositDecimalsOne/streamDuration) 
                 / totalVirtualBalance
             );
         }
@@ -406,11 +406,11 @@ contract Stream is LockeERC20, ExternallyGoverned {
         uint256 prevBal = ERC20(rewardToken).balanceOf(address(this));
         ERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
         uint256 newBal = ERC20(rewardToken).balanceOf(address(this));
-        require(newBal > prevBal, "erc20");
+        require(newBal > prevBal, "erc");
 
         if (newBal < prevBal + amount) {
             uint256 attempted = prevBal + amount;
-            require(attempted <= type(uint112).max, "erc20");
+            require(attempted <= type(uint112).max, "erc");
             // some kind of fee on transfer token, we got less than expected
             uint112 delta = uint112(attempted - newBal);
             // if the rewardToken takes a fee on transfer, likely
@@ -438,7 +438,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
         uint256 prevBal = ERC20(depositToken).balanceOf(address(this));
         ERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         uint256 newBal = ERC20(depositToken).balanceOf(address(this));
-        require(newBal <= type(uint112).max && newBal > prevBal, "erc20");
+        require(newBal <= type(uint112).max && newBal > prevBal, "erc");
         
         uint112 trueDepositAmt = uint112(newBal - prevBal);
 
@@ -496,9 +496,9 @@ contract Stream is LockeERC20, ExternallyGoverned {
      *  @dev Allows a stream depositor to exit their entire remaining tokens that haven't streamed
      *  and burns receiptTokens if its not a sale.
      * 
-     *  additionally, updates tokensNotYetStreamed
+     *  additionally, updates tokensNotYetStreamed. Lock is done in withdraw
     */ 
-    function exit() public lock updateStream(msg.sender) {
+    function exit() public updateStream(msg.sender) {
         // checked in updateStream
         // is the stream still going on? thats the only time a depositer can withdraw
         // require(block.timestamp < endStream, "withdraw:!stream");
@@ -519,11 +519,11 @@ contract Stream is LockeERC20, ExternallyGoverned {
         uint256 prevBal = ERC20(token).balanceOf(address(this));
         ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         uint256 newBal = ERC20(token).balanceOf(address(this));
-        require(newBal <= type(uint112).max && newBal > prevBal, "erc20");
+        require(newBal <= type(uint112).max && newBal > prevBal, "erc");
 
         if (newBal < prevBal + amount) {
             uint256 attempted = prevBal + amount;
-            require(attempted <= type(uint112).max, "erc20");
+            require(attempted <= type(uint112).max, "erc");
             // some kind of fee on transfer token, we got less than expected
             uint112 delta = uint112(attempted - newBal);
             incentives[token] -= delta;
@@ -632,19 +632,24 @@ contract Stream is LockeERC20, ExternallyGoverned {
 
         // reset fee amount
         uint112 fees = rewardTokenFeeAmount;
-        rewardTokenFeeAmount = 0;
+        if (fees > 0) {
+            rewardTokenFeeAmount = 0;
 
-        // transfer and emit event
-        ERC20(rewardToken).safeTransfer(destination, fees);
-        emit FeesClaimed(rewardToken, destination, fees);
+            // transfer and emit event
+            ERC20(rewardToken).safeTransfer(destination, fees);
+            emit FeesClaimed(rewardToken, destination, fees);
+        }
 
         fees = depositTokenFlashloanFeeAmount;
-        depositTokenFlashloanFeeAmount = 0;
+        if (fees > 0) {
+            depositTokenFlashloanFeeAmount = 0;
 
-        // transfer and emit event
-        ERC20(depositToken).safeTransfer(destination, fees);
+            // transfer and emit event
+            ERC20(depositToken).safeTransfer(destination, fees);
 
-        emit FeesClaimed(depositToken, destination, fees);
+            emit FeesClaimed(depositToken, destination, fees);
+        }
+        
     }
 
     // ======== Non-protocol functions ========
@@ -712,7 +717,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
      *  @dev Allows anyone to flashloan reward or deposit token for a 10bps fee
     */
     function flashloan(address token, address to, uint112 amount, bytes memory data) public lock {
-        require(token == depositToken || token == rewardToken, "flash");
+        require(token == depositToken || token == rewardToken, "erc");
 
         uint256 preDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
         uint256 preRewardTokenBalance = ERC20(rewardToken).balanceOf(address(this));
@@ -720,8 +725,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
         ERC20(token).safeTransfer(to, amount);
 
         // the `to` contract should have a public function with the signature:
-        // function lockeCall(address initiator, uint256 amount, bytes memory data);
-        LockeCallee(to).lockeCall(msg.sender, amount, data);
+        // function lockeCall(address initiator, address token, uint256 amount, bytes memory data);
+        LockeCallee(to).lockeCall(msg.sender, token, amount, data);
 
         uint256 postDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
         uint256 postRewardTokenBalance = ERC20(rewardToken).balanceOf(address(this));
@@ -730,12 +735,12 @@ contract Stream is LockeERC20, ExternallyGoverned {
 
         if (token == depositToken) {
             depositTokenFlashloanFeeAmount += feeAmt;
-            require(preDepositTokenBalance + feeAmt <= postDepositTokenBalance, "flash");
-            require(preRewardTokenBalance <= postRewardTokenBalance, "flash");
+            require(preDepositTokenBalance + feeAmt <= postDepositTokenBalance, "f1");
+            require(preRewardTokenBalance <= postRewardTokenBalance, "f2");
         } else {
             rewardTokenFeeAmount += feeAmt;
-            require(preDepositTokenBalance <= postDepositTokenBalance, "flash");
-            require(preRewardTokenBalance + feeAmt <= postRewardTokenBalance, "flash");
+            require(preDepositTokenBalance <= postDepositTokenBalance, "f3");
+            require(preRewardTokenBalance + feeAmt <= postRewardTokenBalance, "f4");
         }
 
         emit Flashloaned(token, msg.sender, amount, feeAmt);
@@ -752,7 +757,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
         // cannot have an active incentive for the callee
         require(incentives[who] == 0, "inc");
         // cannot be to deposit token nor reward token
-        require(who != depositToken && who != rewardToken, "erc20");
+        require(who != depositToken && who != rewardToken, "erc");
 
         // get token balances
         uint256 preDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
@@ -764,7 +769,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
         // require no change in balances
         uint256 postDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
         uint256 postRewardTokenBalance = ERC20(rewardToken).balanceOf(address(this));
-        require(preDepositTokenBalance == postDepositTokenBalance && preRewardTokenBalance == postRewardTokenBalance, "erc20");
+        require(preDepositTokenBalance == postDepositTokenBalance && preRewardTokenBalance == postRewardTokenBalance, "erc");
     }
 }
 

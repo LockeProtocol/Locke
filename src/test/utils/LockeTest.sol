@@ -7,7 +7,17 @@ import "solmate/tokens/ERC20.sol";
 import "./TestToken.sol";
 
 contract User is TestHelpers{
-    constructor() {
+    ERC20 testTokenA;
+    ERC20 testTokenB;
+    ERC20 testTokenC;
+    constructor(
+        ERC20 _testTokenA,
+        ERC20 _testTokenB,
+        ERC20 _testTokenC
+    ) {
+        testTokenA = _testTokenA;
+        testTokenB = _testTokenB;
+        testTokenC = _testTokenC;
     }
 
     function doStake(Stream stream, address token, uint112 amount) public {
@@ -27,6 +37,39 @@ contract User is TestHelpers{
     function doClaimReward(Stream stream) public {
         stream.claimReward();
     }
+
+    function doCreateStream(StreamFactory factory, bool isSale) public returns (Stream){
+        (
+            uint32 maxDepositLockDuration,
+            uint32 maxRewardLockDuration,
+            uint32 maxStreamDuration,
+            uint32 minStreamDuration
+        ) = factory.streamParams();
+
+        uint32 startTime = uint32(block.timestamp + 10);
+        Stream stream = factory.createStream(
+            address(testTokenA),
+            address(testTokenB),
+            startTime,
+            minStreamDuration,
+            maxDepositLockDuration,
+            0,
+            isSale
+            // false,
+            // bytes32(0)
+        );
+        return stream;
+    }
+
+    function failClaimFees(Stream stream) public {
+        bytes4 sig = sigs("claimFees(address)");
+        expect_revert_with(
+            address(stream),
+            sig,
+            abi.encode(address(this)),
+            "!gov"
+        );
+    }
 }
 
 abstract contract LockeTest is TestHelpers {
@@ -36,6 +79,7 @@ abstract contract LockeTest is TestHelpers {
 
     ERC20 testTokenA;
     ERC20 testTokenB;
+    ERC20 testTokenC;
 
     // users
     User internal alice;
@@ -45,15 +89,17 @@ abstract contract LockeTest is TestHelpers {
         hevm.warp(1609459200); // jan 1, 2021
         testTokenA = ERC20(address(new TestToken("Test Token A", "TTA", 18)));
         testTokenB = ERC20(address(new TestToken("Test Token B", "TTB", 18)));
+        testTokenC = ERC20(address(new TestToken("Test Token C", "TTC", 18)));
         write_balanceOf_ts(address(testTokenA), address(this), 100*10**18);
         write_balanceOf_ts(address(testTokenB), address(this), 100*10**18);
+        write_balanceOf_ts(address(testTokenC), address(this), 100*10**18);
         assertEq(testTokenA.balanceOf(address(this)), 100*10**18);
         assertEq(testTokenB.balanceOf(address(this)), 100*10**18);
 
         defaultStreamFactory = new StreamFactory(address(this), address(this));
 
-        alice = new User();
-        bob = new User();
+        alice = new User(testTokenA, testTokenB, testTokenC);
+        bob = new User(testTokenA, testTokenB, testTokenC);
 
     }
 
