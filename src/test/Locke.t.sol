@@ -44,7 +44,7 @@ contract StreamTest is LockeTest {
                 address(stream),
                 sig,
                 abi.encode(0),
-                "poor"
+                "amt"
             );
             hevm.warp(block.timestamp + 11);
             expect_revert_with(
@@ -218,7 +218,7 @@ contract StreamTest is LockeTest {
                 address(stream),
                 sig,
                 abi.encode(0),
-                "poor"
+                "amt"
             );
 
             // fast forward minStreamDuration
@@ -432,7 +432,7 @@ contract StreamTest is LockeTest {
                 address(stream),
                 sig,
                 abi.encode(0),
-                "poor"
+                "amt"
             );
         }
 
