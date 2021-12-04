@@ -174,6 +174,14 @@ contract Stream is LockeERC20, ExternallyGoverned {
     uint32 private lastUpdate;
     // ============
 
+    // == slot f ==
+    uint256 private totalRewardsOwed;
+    // ============
+
+    // == slot g ==
+    uint256 private lastCumulativeRewardPerToken;
+    // ============
+
     // mapping of address to number of tokens not yet streamed over
     mapping (address => TokenStream) public tokensNotYetStreamed;
 
@@ -217,7 +225,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
             cumulativeRewardPerToken = rewardPerToken();
 
             // update user rewards
-            ts.rewards = earned(ts, cumulativeRewardPerToken);
+            uint112 accruedRewards = accrued(ts, cumulativeRewardPerToken);
+            ts.rewards = ts.rewards + accruedRewards;
             // update users last cumulative reward per token
             ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;
 
@@ -237,6 +246,11 @@ contract Stream is LockeERC20, ExternallyGoverned {
                 uint256 globalStreamingSpeedPerSecond = (uint256(unstreamed) * 10**6)/ (endStream - lastUpdate);
                 unstreamed -= uint112((uint256(tdelta) * globalStreamingSpeedPerSecond) / 10**6);
             }
+
+            // update total outstanding rewards owed
+            lastCumulativeRewardPerToken = cumulativeRewardPerToken;
+            totalRewardsOwed = totalRewardsOwed + accruedRewards;
+
             // already ensure that blocktimestamp is less than endStream so guaranteed ok here
             lastUpdate = uint32(block.timestamp);
         } else {
@@ -362,13 +376,17 @@ contract Stream is LockeERC20, ExternallyGoverned {
         }
     }
 
-    function getEarned(address who) public view returns (uint256) {
-        TokenStream storage ts = tokensNotYetStreamed[who];
-        return earned(ts, rewardPerToken());
+    function getTotalRewardsOwed() public view returns (uint256) {
+        return uint112(totalVirtualBalance * (rewardPerToken() - lastCumulativeRewardPerToken) / depositDecimalsOne) + totalRewardsOwed;
     }
 
-    function earned(TokenStream storage ts, uint256 currCumRewardPerToken) internal view returns (uint112) {
-        return uint112(ts.virtualBalance * (currCumRewardPerToken - ts.lastCumulativeRewardPerToken) / depositDecimalsOne) + ts.rewards;
+    function getEarned(address who) public view returns (uint256) {
+        TokenStream storage ts = tokensNotYetStreamed[who];
+        return accrued(ts, rewardPerToken()) + ts.rewards;
+    }
+
+    function accrued(TokenStream storage ts, uint256 currCumRewardPerToken) internal view returns (uint112) {
+        return uint112(ts.virtualBalance * (currCumRewardPerToken - ts.lastCumulativeRewardPerToken) / depositDecimalsOne);
     }
 
     /**
@@ -560,7 +578,9 @@ contract Stream is LockeERC20, ExternallyGoverned {
         cumulativeRewardPerToken = rewardPerToken();
 
         // update user rewards
-        ts.rewards = earned(ts, cumulativeRewardPerToken);
+        uint112 accruedRewards = accrued(ts, cumulativeRewardPerToken);
+        ts.rewards = ts.rewards + accruedRewards;
+
         // update users last cumulative reward per token
         ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;
 
@@ -570,6 +590,9 @@ contract Stream is LockeERC20, ExternallyGoverned {
         ts.rewards = 0;
 
         require(rewardAmt > 0, "amt");
+
+        // Update total rewards owed
+        totalRewardsOwed = totalRewardsOwed + accruedRewards - rewardAmt;
 
         // transfer the tokens
         ERC20(rewardToken).safeTransfer(msg.sender, rewardAmt);
@@ -669,7 +692,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
             // and recover the excess (if it is worth anything)
 
             // check what isnt claimable by depositors and governance
-            uint256 excess = ERC20(token).balanceOf(address(this)) - (rewardTokenAmount + rewardTokenFeeAmount);
+            uint256 excess = ERC20(token).balanceOf(address(this)) - (getTotalRewardsOwed() + rewardTokenFeeAmount);
             ERC20(token).safeTransfer(recipient, excess);
 
             emit RecoveredTokens(token, recipient, excess);

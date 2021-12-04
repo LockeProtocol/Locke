@@ -178,14 +178,65 @@ contract StreamTest is LockeTest {
         hevm.warp(startTime + minStreamDuration / 2 + minStreamDuration / 10);
 
         alice.doExit(stream); 
+        assertEq(testTokenB.balanceOf(address(alice)), 40);
 
         hevm.warp(startTime + minStreamDuration + 1); // warp to end of stream
-
 
         alice.doClaimReward(stream);
         assertEq(testTokenA.balanceOf(address(alice)), 533);
         bob.doClaimReward(stream);
         assertEq(testTokenA.balanceOf(address(bob)), 466);
+
+        (
+            uint112 rewardTokenAmount, 
+            uint112 depositTokenAmount, 
+            uint112 rewardTokenFeeAmount, 
+            uint112 depositTokenFlashloanFeeAmount
+        ) = stream.tokenAmounts();
+
+        assertEq(depositTokenAmount, 160);
+
+    }
+
+    function test_totalRewardsOwed() public {
+        (
+            uint32 maxDepositLockDuration,
+            uint32 maxRewardLockDuration,
+            uint32 maxStreamDuration,
+            uint32 minStreamDuration
+        ) = defaultStreamFactory.streamParams();
+
+        uint32 startTime = uint32(block.timestamp + 10);
+        Stream stream = defaultStreamFactory.createStream(
+            address(testTokenA),
+            address(testTokenB),
+            startTime,
+            minStreamDuration,
+            maxDepositLockDuration,
+            0,
+            false
+            // false
+            // bytes32(0)
+        );
+        testTokenA.approve(address(stream), type(uint256).max);
+        stream.fundStream(1000);
+        alice.doStake(stream, address(testTokenB), 100);
+
+        hevm.warp(startTime + minStreamDuration / 2); // move to half done
+        alice.doExit(stream);
+
+        hevm.warp(startTime + minStreamDuration * 3 / 4); // move to 3/4 done
+        bob.doStake(stream, address(testTokenB), 200);
+
+        hevm.warp(startTime + minStreamDuration + 1); // warp to end of stream
+        assertEq(750, stream.getTotalRewardsOwed());
+
+        alice.doClaimReward(stream);
+        assertEq(250, stream.getTotalRewardsOwed());
+        
+        uint256 prevBal = testTokenA.balanceOf(address(this));
+        stream.recoverTokens(address(testTokenA), address(this));
+        assertEq(250, testTokenA.balanceOf(address(this)) - prevBal);
     }
 
     function test_stake() public {
