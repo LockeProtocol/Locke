@@ -9,7 +9,7 @@ set -eo pipefail
 export TMPDIR=$(mktemp -d)
 
 # clean up
-trap 'killall geth && sleep 3 && rm -rf "$TMPDIR"' EXIT
+trap 'printf "\nCleaning up...\n" && pkill -f dapp && sleep 3 && rm -rf "$TMPDIR"' EXIT
 trap "exit 1" SIGINT SIGTERM
 
 # test helper
@@ -22,7 +22,7 @@ error() {
 # launch the testnet
 dapp testnet --dir "$TMPDIR" &
 # wait for it to launch (can't go <3s)
-sleep 3
+sleep 5
 
 # set the RPC URL to the local testnet
 export ETH_RPC_URL=http://127.0.0.1:8545

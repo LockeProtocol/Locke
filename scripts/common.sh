@@ -57,10 +57,11 @@ EOF
 # (or omit the env vars if you have already set them)
 deploy() {
 	NAME=$1
-	ARGS=${@:2}
+	FILENAME=$2
+	ARGS=${@:3}
 
 	# find file path
-	CONTRACT_PATH=$(find . -name $NAME.sol)
+	CONTRACT_PATH=$(find . -name $2)
 	CONTRACT_PATH=${CONTRACT_PATH:2}
 
 	# select the filename and the contract in it

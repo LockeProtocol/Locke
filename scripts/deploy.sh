@@ -6,5 +6,5 @@ set -eo pipefail
 . $(dirname $0)/common.sh
 
 # Deploy.
-GreeterAddr=$(deploy Greeter)
-log "Greeter deployed at:" $GreeterAddr
+StreamFactoryAddr=$(deploy StreamFactory Locke.sol $ETH_FROM $ETH_FROM)
+log "StreamFactory deployed at:" $StreamFactoryAddr
