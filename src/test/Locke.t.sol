@@ -259,7 +259,7 @@ contract StreamTest is LockeTest {
             }
             
             {
-                (uint256 lastCumulativeRewardPerToken, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu, ) = stream.tokensNotYetStreamed(address(this));
+                (uint256 lastCumulativeRewardPerToken, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu, ) = stream.tokenStreamForAccount(address(this));
                 assertEq(lastCumulativeRewardPerToken, 0);
                 assertEq(virtualBalance, 100);
                 assertEq(tokens, 100);
@@ -279,7 +279,7 @@ contract StreamTest is LockeTest {
             }
 
             {
-                (uint256 lastCumulativeRewardPerToken, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu, ) = stream.tokensNotYetStreamed(address(this));
+                (uint256 lastCumulativeRewardPerToken, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu, ) = stream.tokenStreamForAccount(address(this));
                 assertEq(lastCumulativeRewardPerToken, rewardPerToken);
                 assertEq(virtualBalance, 101);
                 assertEq(tokens, 91);
@@ -297,7 +297,7 @@ contract StreamTest is LockeTest {
             }
 
             {
-                (uint256 lastCumulativeRewardPerToken, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu, ) = stream.tokensNotYetStreamed(address(this));
+                (uint256 lastCumulativeRewardPerToken, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu, ) = stream.tokenStreamForAccount(address(this));
                 assertEq(lastCumulativeRewardPerToken, rewardPerToken);
                 assertEq(virtualBalance, 102);
                 assertEq(tokens, 82);
@@ -328,7 +328,7 @@ contract StreamTest is LockeTest {
 
             (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
             assertEq(depositTokenAmount, 100);
-            (uint256 lastCumulativeRewardPerToken, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu, ) = stream.tokensNotYetStreamed(address(this));
+            (uint256 lastCumulativeRewardPerToken, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu, ) = stream.tokenStreamForAccount(address(this));
             assertEq(tokens, 100);
         }
     }
@@ -535,7 +535,7 @@ contract StreamTest is LockeTest {
             testTokenB.approve(address(stream), type(uint256).max);
 
             stream.stake(100);
-            bytes4 sig = sigs("creatorClaimSoldTokens(address)");
+            bytes4 sig = sigs("creatorClaim(address)");
             expect_revert_with(
                 address(stream),
                 sig,
@@ -561,8 +561,8 @@ contract StreamTest is LockeTest {
 
             stream.stake(100);
             hevm.warp(endStream);
-            stream.creatorClaimSoldTokens(address(this));
-            bytes4 sig = sigs("creatorClaimSoldTokens(address)");
+            stream.creatorClaim(address(this));
+            bytes4 sig = sigs("creatorClaim(address)");
             expect_revert_with(
                 address(stream),
                 sig,
@@ -578,7 +578,7 @@ contract StreamTest is LockeTest {
             testTokenB.approve(address(stream), type(uint256).max);
 
             stream.stake(100);
-            bytes4 sig = sigs("creatorClaimSoldTokens(address)");
+            bytes4 sig = sigs("creatorClaim(address)");
             expect_revert_with(
                 address(stream),
                 sig,
@@ -603,7 +603,7 @@ contract StreamTest is LockeTest {
             testTokenB.approve(address(stream), type(uint256).max);
 
             stream.stake(100);
-            bytes4 sig = sigs("creatorClaimSoldTokens(address)");
+            bytes4 sig = sigs("creatorClaim(address)");
             expect_revert_with(
                 address(stream),
                 sig,
@@ -630,7 +630,7 @@ contract StreamTest is LockeTest {
 
             stream.stake(100);
             hevm.warp(endStream);
-            stream.creatorClaimSoldTokens(address(this));
+            stream.creatorClaim(address(this));
             assertEq(testTokenB.balanceOf(address(this)), bal);
             hevm.warp(startTime - 10);
         }
@@ -1211,7 +1211,7 @@ contract StreamFactoryTest is LockeTest {
             (feePercent, feeEnabled) = stream.feeParams();
             assertEq(feePercent, 0);
             assertTrue(!feeEnabled);
-            assertTrue(!stream.isSale());
+            assertTrue(!stream.isIndefinite());
         }
         
         {
@@ -1262,7 +1262,7 @@ contract StreamFactoryTest is LockeTest {
             (feePercent, feeEnabled) = stream.feeParams();
             assertEq(feePercent, 100);
             assertTrue(feeEnabled);
-            assertTrue(!stream.isSale());
+            assertTrue(!stream.isIndefinite());
         }
         // ===   ===
     }

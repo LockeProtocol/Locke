@@ -38,7 +38,7 @@ contract User is TestHelpers{
         stream.claimReward();
     }
 
-    function doCreateStream(StreamFactory factory, bool isSale) public returns (Stream){
+    function doCreateStream(StreamFactory factory, bool isIndefinite) public returns (Stream){
         (
             uint32 maxDepositLockDuration,
             uint32 maxRewardLockDuration,
@@ -54,7 +54,7 @@ contract User is TestHelpers{
             minStreamDuration,
             maxDepositLockDuration,
             0,
-            isSale
+            isIndefinite
             // false,
             // bytes32(0)
         );
