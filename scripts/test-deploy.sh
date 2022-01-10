@@ -21,7 +21,7 @@ governor=$(seth --abi-decode "governorship()(address,address,address)" $(seth ca
 [[ $governor = $ETH_FROM ]] || error
 
 # Stream start time 100 seconds in future
-startTime=$(($(seth block latest timestamp) + 100))
+startTime=$(($(seth block latest timestamp) + 200))
 
 # Create a stream
 gas=$(seth estimate $factory \
@@ -29,7 +29,7 @@ gas=$(seth estimate $factory \
     $tokenA \
     $tokenB \
     $startTime \
-    604800 \
+    3600 \
     0 \
     0 \
     true \
@@ -41,10 +41,10 @@ tx=$(seth send $factory \
     $tokenA \
     $tokenB \
     $startTime \
-    86400 \
+    3600 \
     0 \
     0 \
-    false \
+    true \
     --keystore $TMPDIR/8545/keystore \
     --password /dev/null \
     --gas $gas \
@@ -54,7 +54,7 @@ tx=$(seth send $factory \
 stream=$(seth --abi-decode 'noop()(address)' $(seth receipt $tx logs | jq -r '.[0].data' ))
 log "Stream Address: " $stream
 
-amount=1000000000000000000000000
+amount=1000000000000000000000
 
 seth send $tokenA \
     'approve(address,uint256)' \

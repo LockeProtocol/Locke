@@ -19,6 +19,8 @@ error() {
     exit 1
 }
 
+export DAPP_TESTNET_PERIOD=15
+
 # launch the testnet
 dapp testnet --dir "$TMPDIR" &
 # wait for it to launch (can't go <3s)
