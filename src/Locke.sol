@@ -6,22 +6,18 @@ import "solmate/utils/SafeTransferLib.sol";
 import "solmate/tokens/ERC20.sol";
 
 // ====== Governance =====
-contract Governed {
+contract MinimallyGoverned {
     address public gov;
-    address private pendingGov;
-    address public emergency_gov;
+    address public pendingGov;
+
+    error NotPending();
+    error NotGov();
 
     event NewGov(address indexed oldGov, address indexed newGov);
-    event NewEmergencyGov(address indexed oldGov, address indexed newGov);
     event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
 
-    constructor(address _governor, address _emergency_governor) public {
+    constructor(address _governor) public {
         gov = _governor;
-        emergency_gov = _emergency_governor;
-    }
-
-    function governorship() public view returns (address, address, address) {
-        return (gov, emergency_gov, pendingGov);
     }
 
     /// Update pending governor
@@ -33,62 +29,40 @@ contract Governed {
 
     /// Accepts governorship
     function acceptGov() public {
-        require(pendingGov == msg.sender, "!pending");
+        if (pendingGov != msg.sender) revert NotPending();
         address old = gov;
         gov = pendingGov;
         emit NewGov(old, pendingGov);
     }
 
-    function setEmergencyGov(address who) public governed {
-        emergency_gov = who;
-    } 
-
     /// Remove governor
     function __abdicate() governed public {
         address old = gov;
-        address old_e = emergency_gov;
         gov = address(0);
-        emergency_gov = address(0);
         emit NewGov(old, address(0));
-        emit NewEmergencyGov(old_e, address(0));
     }
 
     // ====== Modifiers =======
     /// Governed function
     modifier governed {
-        require(msg.sender == gov, "!gov");
-        _;
-    }
-
-    /// Emergency governed function
-    modifier emergency_governed {
-        require(msg.sender == gov || msg.sender == emergency_gov, "!egov");
+        if (msg.sender != gov) revert NotGov();
         _;
     }
 }
 
-interface IGoverned {
-    function gov() external view returns (address);
-    function emergency_gov() external view returns (address);
-}
+abstract contract MinimallyExternallyGoverned {
+    MinimallyGoverned immutable gov;
 
-abstract contract ExternallyGoverned {
-    IGoverned public gov;
+    error NotGov();
 
     constructor(address governor) {
-        gov = IGoverned(governor);
+        gov = MinimallyGoverned(governor);
     }
 
     // ====== Modifiers =======
     /// Governed function
     modifier externallyGoverned {
-        require(msg.sender == gov.gov(), "!gov");
-        _;
-    }
-
-    /// Emergency governed function
-    modifier externallyEmergencyGoverned {
-        require(msg.sender == gov.gov() || msg.sender == gov.emergency_gov(), "!e_gov");
+        if (msg.sender != gov.gov()) revert NotGov();
         _;
     }
 }
@@ -98,7 +72,7 @@ interface LockeCallee {
 }
 
 // ====== Stream =====
-contract Stream is LockeERC20, ExternallyGoverned {
+contract Stream is LockeERC20, MinimallyExternallyGoverned {
     using SafeTransferLib for ERC20;    
     // ======= Structs ========
     struct TokenStream {
@@ -175,13 +149,15 @@ contract Stream is LockeERC20, ExternallyGoverned {
     // == slot e ==
     uint112 public unstreamed;
     uint112 private redeemedDepositTokens;
+    // ============
+
+    // == slot f ==
     uint112 private redeemedRewardTokens;
     uint32 private lastUpdate;
     // ============
 
     // mapping of address to number of tokens not yet streamed over
     mapping (address => TokenStream) public tokenStreamForAccount;
-
 
     struct Incentive {
         uint112 amt;
@@ -197,31 +173,45 @@ contract Stream is LockeERC20, ExternallyGoverned {
     event Withdrawn(address indexed who, uint256 amount);
     event StreamIncentivized(address indexed token, uint256 amount);
     event StreamIncentiveClaimed(address indexed token, uint256 amount);
-    event SoldTokensClaimed(address indexed who, uint256 amount);
+    event TokensClaimed(address indexed who, uint256 amount);
     event DepositTokensReclaimed(address indexed who, uint256 amount);
     event FeesClaimed(address indexed token, address indexed who, uint256 amount);
     event RecoveredTokens(address indexed token, address indexed recipient, uint256 amount);
     event RewardsClaimed(address indexed who, uint256 amount);
     event Flashloaned(address indexed token, address indexed who, uint256 amount, uint256 fee);
 
+    // =======   Errors  ========
+    error NotStream();
+    error ZeroAmount();
+    error BalanceError();
+    error Reentrant();
+    error NotBeforeStream();
+    error BadERC20Interaction();
+    error NotCreator();
+    error StreamOngoing();
+    error StreamTypeError();
+    error LockOngoing();
+
     // ======= Modifiers ========
-    modifier updateStream(address who) {
+    modifier updateStream() {
         // save bytecode space by making it a jump instead of inlining at cost of gas
-        updateStreamInternal(who);
+        updateStreamInternal();
         _;
     }
 
-    function updateStreamInternal(address who) internal {
-        require(block.timestamp < endStream , "!stream");
+    function updateStreamInternal() internal {
+        if (block.timestamp >= endStream) revert NotStream();
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
+        // only do one cast
+        //
+        // Safety:
+        //  1. Timestamp wont cross this point until Feb 7th, 2106.
+        uint32 timestamp = uint32(block.timestamp);
 
         if (block.timestamp >= startTime) {
             // set lastUpdates if need be
             if (ts.lastUpdate == 0) {
-                ts.lastUpdate = uint32(block.timestamp);
-            }
-            if (lastUpdate == 0) {
-                lastUpdate = uint32(block.timestamp);
+                ts.lastUpdate = timestamp;
             }
 
             // accumulate reward per token info
@@ -233,40 +223,60 @@ contract Stream is LockeERC20, ExternallyGoverned {
             ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;
 
             // update users unstreamed balance
-            uint32 acctTimeDelta = uint32(block.timestamp) - ts.lastUpdate;
-            if (acctTimeDelta > 0) {
-                // some time has passed since this user last interacted
-                // update ts not yet streamed
-                // downcast is safe as guaranteed to be a % of uint112
-                if (ts.tokens > 0) {
-                    uint112 streamAmt = uint112(uint256(acctTimeDelta) * ts.tokens / (endStream - ts.lastUpdate));
-                    require(streamAmt > 0, "!streamed");
-                    ts.tokens -= streamAmt;
-                }
-                ts.lastUpdate = uint32(block.timestamp);
-            }
 
-            // handle global unstreamed
-            uint32 tdelta = uint32(block.timestamp - lastUpdate);
-            // stream tokens over
-            if (tdelta > 0 && unstreamed > 0) {
-                unstreamed -= uint112(uint256(tdelta) * unstreamed / (endStream - lastUpdate));
+
+            unchecked {
+                // Safety:
+                //  1. timestamp - ts.lastUpdate: ts.lastUpdate is guaranteed to be <= current timestamp when timestamp >= startTime        
+                uint32 acctTimeDelta = timestamp - ts.lastUpdate;
+
+                if (acctTimeDelta > 0) {
+                    // some time has passed since this user last interacted
+                    // update ts not yet streamed
+                    // downcast is safe as guaranteed to be a % of uint112
+                    if (ts.tokens > 0) {
+
+                        // Safety:
+                        //  1. acctTimeDelta * ts.tokens: acctTimeDelta is uint32, ts.tokens is uint112, cannot overflow uint256
+                        //  2. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
+                        //  3. streamAmt guaranteed to be a truncated (rounded down) % of ts.tokens
+                        uint112 streamAmt = uint112(uint256(acctTimeDelta) * ts.tokens / (endStream - ts.lastUpdate));
+                        if (streamAmt == 0) revert ZeroAmount();
+                        ts.tokens -= streamAmt;
+
+                    }
+                    ts.lastUpdate = timestamp;
+                }
+
+                // handle global unstreamed
+                //
+                // Safety:
+                //  1. timestamp - lastUpdate: lastUpdate is guaranteed to be <= current timestamp when timestamp >= startTime
+                uint32 tdelta = timestamp - lastUpdate;
+
+                // stream tokens over
+                if (tdelta > 0 && unstreamed > 0) {
+
+                    // Safety:
+                    //  1. tdelta*unstreamed: uint32 * uint112 guaranteed to fit into uint256 so no overflow or zeroed bits
+                    //  2. endStream - lastUpdate: lastUpdate guaranteed to be less than endStream in this codepath
+                    //  3. tdelta*unstreamed/(endStream - lastUpdate): guaranteed to be less than unstreamed as its a % of unstreamed
+                    unstreamed -= uint112(uint256(tdelta) * unstreamed / (endStream - lastUpdate));
+
+                }
+
+                // already ensure that blocktimestamp is less than endStream so guaranteed ok here
+                lastUpdate = timestamp;
             }
-            // already ensure that blocktimestamp is less than endStream so guaranteed ok here
-            lastUpdate = uint32(block.timestamp);
         } else {
             if (ts.lastUpdate == 0) {
                 ts.lastUpdate = startTime;
             }
-            if (lastUpdate == 0) {
-                lastUpdate = startTime;
-            }
         }
     }
 
-
     function lockInternal() internal {
-        require(unlocked == 1, "re");
+        if (unlocked != 1) revert Reentrant();
         unlocked = 2;
     }
     modifier lock {
@@ -287,19 +297,19 @@ contract Stream is LockeERC20, ExternallyGoverned {
         uint32 _rewardLockDuration,
         uint16 _feePercent,
         bool _feeEnabled
-
     )
         LockeERC20(_depositToken, _streamId, _startTime + _streamDuration)
-        ExternallyGoverned(msg.sender) // inherit factory governance
+        MinimallyExternallyGoverned(msg.sender) // inherit factory governance
         public 
     {
-        require(_rewardToken != _depositToken, "tkns");
+        // No error code or msg to reduce bytecode size
+        require(_rewardToken != _depositToken);
         // set fee info
         feePercent = _feePercent;
         feeEnabled = _feeEnabled;
 
         // limit feePercent
-        require(feePercent < 10000, "fee");
+        require(feePercent < 10000);
     
         // store streamParams
         startTime = _startTime;
@@ -324,6 +334,9 @@ contract Stream is LockeERC20, ExternallyGoverned {
         streamCreator = creator;
 
         depositDecimalsOne = uint112(10**ERC20(depositToken).decimals());
+
+        // set lastUpdate to startTime to reduce codesize and first users gas
+        lastUpdate = startTime;
     }
 
     /**
@@ -369,8 +382,14 @@ contract Stream is LockeERC20, ExternallyGoverned {
             return cumulativeRewardPerToken;
         } else {
             // ∆time*rewardTokensPerSecond*oneDepositToken / totalVirtualBalance
+            uint256 tdelta;
+            // Safety:
+            //  1. lastApplicableTime has the same bounds as lastUpdate for minimum, current, and max
+            unchecked {
+                tdelta = lastApplicableTime() - lastUpdate;
+            }
             return cumulativeRewardPerToken + (
-                ((uint256(lastApplicableTime()) - lastUpdate) * rewardTokenAmount * depositDecimalsOne/streamDuration) 
+                (tdelta * rewardTokenAmount * depositDecimalsOne/streamDuration) 
                 / totalVirtualBalance
             );
         }
@@ -381,7 +400,12 @@ contract Stream is LockeERC20, ExternallyGoverned {
         if (block.timestamp < startTime) {
             return amount;
         } else {
-            uint32 timeRemaining = endStream - uint32(block.timestamp);
+            uint32 timeRemaining;
+            // Safety:
+            //  1. dilutedBalance is only called in stake and _withdraw, which requires that time < endStream
+            unchecked {
+                timeRemaining = endStream - uint32(block.timestamp);
+            }
             return ((uint256(streamDuration) * amount * 10**6) / timeRemaining) / 10**6;
         }
     }
@@ -392,24 +416,35 @@ contract Stream is LockeERC20, ExternallyGoverned {
     }
 
     function earned(TokenStream storage ts, uint256 currCumRewardPerToken) internal view returns (uint112) {
-        return uint112(ts.virtualBalance * (currCumRewardPerToken - ts.lastCumulativeRewardPerToken) / depositDecimalsOne) + ts.rewards;
+        uint256 rewardDelta;
+        // Safety:
+        //  1. currCumRewardPerToken - ts.lastCumulativeRewardPerToken: currCumRewardPerToken will always be >= ts.lastCumulativeRewardPerToken
+        unchecked { rewardDelta = currCumRewardPerToken - ts.lastCumulativeRewardPerToken; }
+
+        // TODO: Think more about the bounds on ts.virtualBalance. This mul may be able to be unchecked?
+        return uint112(ts.virtualBalance * rewardDelta / depositDecimalsOne) + ts.rewards;
     }
 
     /**
      * @dev Allows _anyone_ to fund this stream, if its before the stream start time
     **/
-    function fundStream(uint112 amount) public lock {
-        require(amount > 0, "amt");
-        require(block.timestamp < startTime, "time");
+    function fundStream(uint112 amount) external lock {
+        if (amount == 0) revert ZeroAmount();
+        if (block.timestamp >= startTime) revert NotBeforeStream();
         uint112 amt;
 
         // transfer from sender
         uint256 prevBal = ERC20(rewardToken).balanceOf(address(this));
         ERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
         uint256 newBal = ERC20(rewardToken).balanceOf(address(this));
-        require(newBal < type(uint112).max && newBal > prevBal, "erc");
+        if (newBal > type(uint112).max || newBal <= prevBal) revert BadERC20Interaction();
 
-        amount = uint112(newBal - prevBal);
+        // Safety:
+        //  1. newBal already checked above
+        unchecked {
+            amount = uint112(newBal - prevBal);
+        }
+
         // if fee is enabled, take a fee
         if (feeEnabled) {
             // Safety:
@@ -438,8 +473,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
      * 
      *  additionally, updates tokenStreamForAccount
     */ 
-    function stake(uint112 amount) public lock updateStream(msg.sender) {
-        require(amount > 0, "amt");
+    function stake(uint112 amount) external lock updateStream {
+        if (amount == 0) revert ZeroAmount();
 
         // checked in updateStream
         // require(block.timestamp < endStream, "stake:!stream");
@@ -448,7 +483,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
         uint256 prevBal = ERC20(depositToken).balanceOf(address(this));
         ERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         uint256 newBal = ERC20(depositToken).balanceOf(address(this));
-        require(newBal <= type(uint112).max && newBal > prevBal, "erc");
+        if (newBal > type(uint112).max || newBal <= prevBal) revert BadERC20Interaction();
         
         uint112 trueDepositAmt = uint112(newBal - prevBal);
 
@@ -476,19 +511,15 @@ contract Stream is LockeERC20, ExternallyGoverned {
      * 
      *  additionally, updates tokenStreamForAccount
     */ 
-    function withdraw(uint112 amount) public lock updateStream(msg.sender) {
-        _withdraw(amount);
+    function withdraw(uint112 amount) external lock updateStream {
+        TokenStream storage ts = tokenStreamForAccount[msg.sender];
+        if (ts.tokens < amount) revert BalanceError();
+        _withdraw(amount, ts);
     }
 
-    function _withdraw(uint112 amount) internal {
-        require(amount > 0, "amt");
+    function _withdraw(uint112 amount, TokenStream storage ts) internal {
+        if (amount == 0) revert ZeroAmount();
 
-        // checked in updateStream
-        // is the stream still going on? thats the only time a depositer can withdraw
-        // require(block.timestamp < endStream, "withdraw:!stream");
-        TokenStream storage ts = tokenStreamForAccount[msg.sender];
-
-        require(ts.tokens >= amount, "amt");
         ts.tokens -= amount;
 
         uint256 virtualBal = dilutedBalance(amount);
@@ -498,7 +529,6 @@ contract Stream is LockeERC20, ExternallyGoverned {
         unstreamed -= amount;
         if (!isIndefinite) {
             _burn(msg.sender, amount);
-        } else {
         }
 
         // do the transfer
@@ -513,30 +543,31 @@ contract Stream is LockeERC20, ExternallyGoverned {
      * 
      *  additionally, updates tokenStreamForAccount
     */ 
-    function exit() public lock updateStream(msg.sender) {
+    function exit() external lock updateStream {
         // checked in updateStream
         // is the stream still going on? thats the only time a depositer can withdraw
         // require(block.timestamp < endStream, "withdraw:!stream");
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
         uint112 amount = ts.tokens;
-        _withdraw(amount);
+        _withdraw(amount, ts);
     }
 
     /**
      *  @dev Allows anyone to incentivize this stream with extra tokens
      *  and requires the incentive to not be the reward or deposit token
     */ 
-    function createIncentive(address token, uint112 amount) public lock {
-        require(token != rewardToken && token != depositToken, "inc");
+    function createIncentive(address token, uint112 amount) external lock {
+        if (token == rewardToken || token == depositToken) revert BadERC20Interaction();
+        if (amount == 0) revert ZeroAmount();
         
         uint256 prevBal = ERC20(token).balanceOf(address(this));
         ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         uint256 newBal = ERC20(token).balanceOf(address(this));
-        require(newBal <= type(uint112).max && newBal > prevBal, "erc");
+        if (newBal > type(uint112).max || newBal <= prevBal) revert BadERC20Interaction();
 
         uint112 amt = uint112(newBal - prevBal);
         Incentive storage incentive = incentives[token];
-        if (!incentive.flag) { incentive.flag = true };
+        if (!incentive.flag) { incentive.flag = true; }
         incentive.amt += amt;
         emit StreamIncentivized(token, amt);
     }
@@ -544,13 +575,13 @@ contract Stream is LockeERC20, ExternallyGoverned {
     /**
      *  @dev Allows the stream creator to claim an incentive once the stream is done
     */ 
-    function claimIncentive(address token) public lock {
+    function claimIncentive(address token) external lock {
         // creator is claiming
-        require(msg.sender == streamCreator, "!creator");
+        if (msg.sender != streamCreator) revert NotCreator();
         // stream ended
-        require(block.timestamp >= endStream, "stream");
+        if (block.timestamp < endStream) revert StreamOngoing();
         uint112 amount = incentives[token].amt;
-        require(amount > 0, "amt");
+        if (amount == 0) revert ZeroAmount();
         // we dont recent the incentive flag
         incentives[token].amt = 0;
         ERC20(token).safeTransfer(msg.sender, amount);
@@ -561,14 +592,14 @@ contract Stream is LockeERC20, ExternallyGoverned {
      *  @dev Allows a receipt token holder to reclaim deposit tokens if the deposit lock is done & their receiptToken amount
      *  is greater than the requested amount
     */ 
-    function claimDepositTokens(uint112 amount) public lock {
-        require(!isIndefinite, "sale");
+    function claimDepositTokens(uint112 amount) external lock {
+        if (isIndefinite) revert StreamTypeError();
         // NOTE: given that endDepositLock is strictly *after* the last time withdraw or exit is callable
         // we dont need to updateStream(msg.sender)
-        require(amount > 0, "amt");
+        if (amount == 0) revert ZeroAmount();
 
         // is the stream over + the deposit lock period over? thats the only time receiptTokens can be burned for depositTokens after stream is over
-        require(block.timestamp > endDepositLock, "lock");
+        if (block.timestamp <= endDepositLock) revert LockOngoing();
 
         // burn the receiptTokens
         _burn(msg.sender, amount);
@@ -584,8 +615,8 @@ contract Stream is LockeERC20, ExternallyGoverned {
     /**
      *  @dev Allows an original depositor to claim their rewardTokens
     */ 
-    function claimReward() public lock {
-        require(block.timestamp > endRewardLock, "lock");
+    function claimReward() external lock {
+        if (block.timestamp < endRewardLock) revert LockOngoing();
 
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
         // accumulate reward per token info
@@ -598,10 +629,11 @@ contract Stream is LockeERC20, ExternallyGoverned {
 
         lastUpdate = lastApplicableTime();
 
-        uint256 rewardAmt = ts.rewards;
+        uint112 rewardAmt = ts.rewards;
         ts.rewards = 0;
 
-        require(rewardAmt > 0, "amt");
+        if (rewardAmt == 0) revert ZeroAmount();
+
         redeemedRewardTokens += rewardAmt;
 
         // transfer the tokens
@@ -613,16 +645,16 @@ contract Stream is LockeERC20, ExternallyGoverned {
     /**
      *  @dev Allows a creator to claim sold tokens if the stream has ended & this contract is a sale
     */ 
-    function creatorClaim(address destination) public lock {
+    function creatorClaim(address destination) external lock {
         // can only claim when its a sale
-        require(isIndefinite, "!sale");
+        if (!isIndefinite) revert StreamTypeError();
 
         // only can claim once
-        require(!claimedDepositTokens, "claimed");
+        if (claimedDepositTokens) revert BalanceError();
         // creator is claiming
-        require(msg.sender == streamCreator, "!creator");
+        if (msg.sender != streamCreator) revert NotCreator();
         // stream ended
-        require(block.timestamp >= endStream, "stream");
+        if (block.timestamp < endStream) revert StreamOngoing();
         
         uint112 amount = depositTokenAmount;
         redeemedDepositTokens = amount;
@@ -631,16 +663,16 @@ contract Stream is LockeERC20, ExternallyGoverned {
 
         ERC20(depositToken).safeTransfer(destination, amount);
 
-        emit SoldTokensClaimed(destination, amount);
+        emit TokensClaimed(destination, amount);
     }
 
     /**
      *  @dev Allows the governance contract of the factory to select a destination
      *  and transfer fees (in rewardTokens) to that address totaling the total fee amount
     */ 
-    function claimFees(address destination) public lock externallyGoverned {
+    function claimFees(address destination) external lock externallyGoverned {
         // Stream is done
-        require(block.timestamp >= endStream, "stream");
+        if (block.timestamp < endStream) revert StreamOngoing();
 
         // reset fee amount
         uint112 fees = rewardTokenFeeAmount;
@@ -678,12 +710,12 @@ contract Stream is LockeERC20, ExternallyGoverned {
      *      3. if incentivized:
      *          - excesss defined as bal - incentives[token]
     */ 
-    function recoverTokens(address token, address recipient) public lock {
+    function recoverTokens(address token, address recipient) external lock {
         // NOTE: it is the stream creators responsibility to save
         // tokens on behalf of their users.
-        require(msg.sender == streamCreator, "!creator");
+        if (msg.sender != streamCreator) revert NotCreator();
         if (token == depositToken) {
-            require(block.timestamp > endDepositLock, "time");
+            if (block.timestamp <= endDepositLock) revert LockOngoing();
             // get the balance of this contract
             // check what isnt claimable by either party
             uint256 excess = ERC20(token).balanceOf(address(this)) - (depositTokenAmount - redeemedDepositTokens) - depositTokenFlashloanFeeAmount;
@@ -695,7 +727,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
         }
         
         if (token == rewardToken) {
-            require(block.timestamp > endRewardLock, "time");
+            if (block.timestamp < endRewardLock) revert LockOngoing();
             // check current balance vs internal balance
             //
             // NOTE: if a token rebases, i.e. changes balance out from under us,
@@ -712,7 +744,7 @@ contract Stream is LockeERC20, ExternallyGoverned {
         }
 
         if (incentives[token].amt > 0) {
-            require(block.timestamp >= endStream, "stream");
+            if (block.timestamp < endStream) revert StreamOngoing();
             uint256 excess = ERC20(token).balanceOf(address(this)) - incentives[token].amt;
             ERC20(token).safeTransfer(recipient, excess);
             emit RecoveredTokens(token, recipient, excess);
@@ -728,11 +760,10 @@ contract Stream is LockeERC20, ExternallyGoverned {
     /**
      *  @dev Allows anyone to flashloan reward or deposit token for a 10bps fee
     */
-    function flashloan(address token, address to, uint112 amount, bytes memory data) public lock {
-        require(token == depositToken || token == rewardToken, "erc");
+    function flashloan(address token, address to, uint112 amount, bytes calldata data) external lock {
+        if (token != depositToken && token != rewardToken) revert BadERC20Interaction();
 
-        uint256 preDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
-        uint256 preRewardTokenBalance = ERC20(rewardToken).balanceOf(address(this));
+        uint256 preTokenBalance = ERC20(token).balanceOf(address(this));
 
         ERC20(token).safeTransfer(to, amount);
 
@@ -740,19 +771,15 @@ contract Stream is LockeERC20, ExternallyGoverned {
         // function lockeCall(address initiator, address token, uint256 amount, bytes memory data);
         LockeCallee(to).lockeCall(msg.sender, token, amount, data);
 
-        uint256 postDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
-        uint256 postRewardTokenBalance = ERC20(rewardToken).balanceOf(address(this));
+        uint256 postTokenBalance = ERC20(token).balanceOf(address(this));
 
         uint112 feeAmt = amount * 10 / 10000; // 10bps fee
 
+        if (preTokenBalance + feeAmt > postTokenBalance) revert BalanceError();
         if (token == depositToken) {
             depositTokenFlashloanFeeAmount += feeAmt;
-            require(preDepositTokenBalance + feeAmt <= postDepositTokenBalance, "f1");
-            require(preRewardTokenBalance <= postRewardTokenBalance, "f2");
         } else {
             rewardTokenFeeAmount += feeAmt;
-            require(preDepositTokenBalance <= postDepositTokenBalance, "f3");
-            require(preRewardTokenBalance + feeAmt <= postRewardTokenBalance, "f4");
         }
 
         emit Flashloaned(token, msg.sender, amount, feeAmt);
@@ -765,17 +792,21 @@ contract Stream is LockeERC20, ExternallyGoverned {
      * 
      *  The primary usecase is for claiming potentially airdrops that may have accrued on behalf of this contract
     */
-    function arbitraryCall(address who, bytes memory data) public lock externallyGoverned {
+    function arbitraryCall(address who, bytes calldata data) external lock externallyGoverned {
         if (block.timestamp <= endStream + 30 days) {
             // cannot have had an active incentive for the callee
             // before the creator has had *ample* time to claim
-            require(!incentives[who].flag, "inc");
+            if (incentives[who].flag) revert StreamOngoing();
         }
         
         // cannot be to deposit token nor reward token
-        require(who != depositToken && who != rewardToken, "erc");
-        // cannot call approve function
-        require(data[:4] != hex"095ea7b3", "approve");
+        if (who == depositToken || who == rewardToken) revert BadERC20Interaction();
+        // cannot call transferFrom. This stops malicious governance
+        // from being able to transfer from users' wallets that performed
+        // `createIncentive`
+        //
+        // selector: bytes4(keccak256("transferFrom(address,address,uint256)"))
+        if (bytes4(data[0:4]) == bytes4(0x23b872dd)) revert BadERC20Interaction();
 
         // get token balances
         uint256 preDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
@@ -787,11 +818,11 @@ contract Stream is LockeERC20, ExternallyGoverned {
         // require no change in balances
         uint256 postDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
         uint256 postRewardTokenBalance = ERC20(rewardToken).balanceOf(address(this));
-        require(preDepositTokenBalance == postDepositTokenBalance && preRewardTokenBalance == postRewardTokenBalance, "erc");
+        if (preDepositTokenBalance != postDepositTokenBalance || preRewardTokenBalance != postRewardTokenBalance) revert BalanceError();
     }
 }
 
-contract StreamFactory is Governed {
+contract StreamFactory is MinimallyGoverned {
 
     // ======= Structs ========
     struct GovernableStreamParams {
@@ -808,7 +839,7 @@ contract StreamFactory is Governed {
     }
 
     // ======= Storage ========
-    GovernableStreamParams public streamParams;
+    GovernableStreamParams public streamCreationParams;
     GovernableFeeParams public feeParams;
     uint64 public currStreamId; 
 
@@ -819,13 +850,19 @@ contract StreamFactory is Governed {
     event StreamParametersUpdated(GovernableStreamParams oldParams, GovernableStreamParams newParams);
     event FeeParametersUpdated(GovernableFeeParams oldParams, GovernableFeeParams newParams);
 
-    constructor(address _governor, address _emergency_governor) public Governed(_governor, _emergency_governor) {
-        streamParams = GovernableStreamParams({
+    // ======= Errors =========
+    error StartTimeError();
+    error StreamDurationError();
+    error LockDurationError();
+    error GovParamsError();
+
+    constructor(address _governor, address _emergency_governor) public MinimallyGoverned(_governor) {
+        streamCreationParams = GovernableStreamParams({
             maxDepositLockDuration: 52 weeks,
             maxRewardLockDuration: 52 weeks,
             maxStreamDuration: 2 weeks,
             minStreamDuration: 1 hours,
-            minStartDelay: 1 days,
+            minStartDelay: 1 days
         });
     }
 
@@ -850,10 +887,9 @@ contract StreamFactory is Governed {
         // perform checks
 
         {
-            require(startTime >= block.timestamp + streamParams.minStartDelay, "start");
-            require(streamDuration >= streamParams.minStreamDuration && streamDuration <= streamParams.maxStreamDuration, "stream");
-            require(depositLockDuration <= streamParams.maxDepositLockDuration, "lock");
-            require(rewardLockDuration <= streamParams.maxRewardLockDuration, "reward");
+            if (startTime < block.timestamp + streamCreationParams.minStartDelay) revert StartTimeError();
+            if (streamDuration < streamCreationParams.minStreamDuration || streamDuration > streamCreationParams.maxStreamDuration) revert StreamDurationError();
+            if (depositLockDuration > streamCreationParams.maxDepositLockDuration || rewardLockDuration > streamCreationParams.maxRewardLockDuration) revert LockDurationError();
         }
         
 
@@ -885,13 +921,13 @@ contract StreamFactory is Governed {
         // DATA VALIDATION:
         //  there is no real concept of "sane" limits here, and if misconfigured its ultimated
         //  not a massive deal so no data validation is done
-        GovernableStreamParams memory old = streamParams;
-        streamParams = newParams;
+        GovernableStreamParams memory old = streamCreationParams;
+        streamCreationParams = newParams;
         emit StreamParametersUpdated(old, newParams);
     }
 
     function updateFeeParams(GovernableFeeParams memory newFeeParams) public governed {
-        require(newFeeParams.feePercent <= MAX_FEE_PERCENT, "fee");
+        if (newFeeParams.feePercent > MAX_FEE_PERCENT) revert GovParamsError();
         GovernableFeeParams memory old = feeParams;
         feeParams = newFeeParams;
         emit FeeParametersUpdated(old, newFeeParams);

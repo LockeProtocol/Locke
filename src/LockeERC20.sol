@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import "solmate/tokens/ERC20.sol";
 
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
-/// @author Modified from Uniswap (https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2ERC20.sol)
+/// @author Modified from Solmate (https://github.com/Rari-Capital/solmate/blob/master/src/tokens/ERC20.sol)
 abstract contract LockeERC20 {
     /*///////////////////////////////////////////////////////////////
                                   EVENTS
