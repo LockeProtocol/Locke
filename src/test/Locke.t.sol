@@ -718,9 +718,9 @@ contract TestStake is BaseTest {
         testTokenB.approve(address(indefinite), type(uint256).max);
         uint256 gas_left = gasleft();
         indefinite.stake(100);
-        emit_log_named_uint(Color.Cyan, "gas_stake_sale: cold", gas_left - gasleft());
+        emit_log_named_uint(Color.Cyan, "gas_stake_indefinite: cold", gas_left - gasleft());
         LockeERC20 asLERC = LockeERC20(indefinite);
-        // no tokens wen sale
+        // no tokens wen indefinite
         assertEq(asLERC.balanceOf(address(this)), 0);
 
         (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = indefinite.tokenAmounts();
@@ -748,7 +748,7 @@ contract TestStake is BaseTest {
 
         gas_left = gasleft();
         indefinite.stake(100);
-        emit_log_named_uint(Color.Cyan, "gas_stake_sale: warm", gas_left - gasleft());
+        emit_log_named_uint(Color.Cyan, "gas_stake_indefinite: warm", gas_left - gasleft());
     }
 }
 

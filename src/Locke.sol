@@ -115,7 +115,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     // are fees enabled
     bool private immutable feeEnabled;
 
-    // deposits are basically a *sale* to the stream creator if true
+    // deposits are not ever reclaimable by depositors
     bool public immutable isIndefinite;
 
     // stream creator
@@ -127,7 +127,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     //  == sloc a ==
     // internal reward token amount to be given to depositors
     uint112 private rewardTokenAmount;
-    // internal deposit token amount locked/to be sold to stream creator
+    // internal deposit token amount locked/to be claimable by stream creator
     uint112 private depositTokenAmount;
     // ============
 
@@ -328,7 +328,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         // set streamId
         streamId = _streamId;
 
-        // set sale info
+        // set indefinite info
         isIndefinite = _isIndefinite;
     
         streamCreator = creator;
@@ -497,9 +497,8 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         unstreamed += trueDepositAmt;
 
         if (!isIndefinite) {
-            // not a straight sale, so give the user some receipt tokens
+            // not indefinite, so give the user some receipt tokens
             _mint(msg.sender, trueDepositAmt);
-        } else {
         }
 
         emit Staked(msg.sender, trueDepositAmt);
@@ -539,7 +538,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
 
     /**
      *  @dev Allows a stream depositor to exit their entire remaining tokens that haven't streamed
-     *  and burns receiptTokens if its not a sale.
+     *  and burns receiptTokens if its not an indefinite lock.
      * 
      *  additionally, updates tokenStreamForAccount
     */ 
@@ -643,10 +642,10 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     }
 
     /**
-     *  @dev Allows a creator to claim sold tokens if the stream has ended & this contract is a sale
+     *  @dev Allows a creator to claim tokens if the stream has ended & this contract is indefinite
     */ 
     function creatorClaim(address destination) external lock {
-        // can only claim when its a sale
+        // can only claim when its an indefinite lockup
         if (!isIndefinite) revert StreamTypeError();
 
         // only can claim once
