@@ -102,43 +102,45 @@ contract DSTestPlus is DSTest {
     }
 }
 
-abstract contract LockeTest is DSTestPlus {
+
+
+abstract contract BaseTest is DSTestPlus {
     using stdStorage for StdStorage;
-
-    // contracts
-    StreamFactory defaultStreamFactory;
-    Vm vm = Vm(HEVM_ADDRESS);
-
-    ERC20 testTokenA;
-    ERC20 testTokenB;
-    ERC20 testTokenC;
-
+    
+    // ==== Testing ====
     StdStorage stdstore;
-
+    Vm vm = Vm(HEVM_ADDRESS);
     uint160 nextUser = 1337;
     // users
     address alice;
     address bob;
 
-    function setUp() public virtual {
-        vm.warp(1609459200); // jan 1, 2021
-        testTokenA = ERC20(address(new TestToken("Test Token A", "TTA", 18)));
-        testTokenB = ERC20(address(new TestToken("Test Token B", "TTB", 18)));
-        testTokenC = ERC20(address(new TestToken("Test Token C", "TTC", 18)));
+    ERC20 testTokenA;
+    ERC20 testTokenB;
+    ERC20 testTokenC;
+    // =================
 
-        writeBalanceOf(address(this), address(testTokenA), 1<<128);
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
-        writeBalanceOf(address(this), address(testTokenC), 1<<128);
+    bool enteredFlashloan = false;
 
-        assertEq(testTokenA.balanceOf(address(this)), 1<<128);
-        assertEq(testTokenB.balanceOf(address(this)), 1<<128);
-        assertEq(testTokenC.balanceOf(address(this)), 1<<128);
+    StreamFactory defaultStreamFactory;
+    Stream stream;
+    Stream fee;
+    Stream indefinite;
 
-        defaultStreamFactory = new StreamFactory(address(this), address(this));
+    uint32 maxDepositLockDuration;
+    uint32 maxRewardLockDuration;
+    uint32 maxStreamDuration;
+    uint32 minStreamDuration;
+    uint32 minStartDelay;
 
-        alice = setupUser(true);
-        bob = setupUser(true);
-    }
+    uint32 startTime;
+    uint32 streamDuration;
+    uint32 depositLockDuration;
+    uint32 rewardLockDuration;
+
+    uint32 endStream;
+    uint32 endDepositLock;
+    uint32 endRewardLockLock;
 
     function setupUser(bool writeBalances) internal returns (address user) {
         user = address(nextUser);
@@ -170,5 +172,96 @@ abstract contract LockeTest is DSTestPlus {
             // false,
             // bytes32(0)
         );
+    }
+
+    function lockeCall(address originator, address token, uint256 amount, bytes memory data) external {
+        Stream stream = Stream(msg.sender);
+        (bool sendBackFee, uint256 prevBal) = abi.decode(data, (bool, uint256));
+        assertEq(ERC20(token).balanceOf(address(this)), prevBal + amount);
+        if (sendBackFee) {
+            ERC20(token).transfer(msg.sender, amount * 10 / 10000);
+        }
+        ERC20(token).transfer(msg.sender, amount);
+        enteredFlashloan = true;
+        return;
+    }
+
+    function setupInternal() public {
+        alice = address(nextUser);
+        nextUser++;
+        bob = address(nextUser);
+        defaultStreamFactory = new StreamFactory(address(this), address(this));
+
+        (
+            uint32 _maxDepositLockDuration,
+            uint32 _maxRewardLockDuration,
+            uint32 _maxStreamDuration,
+            uint32 _minStreamDuration,
+            uint32 _minStartDelay
+        ) = defaultStreamFactory.streamCreationParams();
+        maxDepositLockDuration = _maxDepositLockDuration;
+        maxRewardLockDuration = _maxRewardLockDuration;
+        maxStreamDuration = _maxStreamDuration;
+        minStreamDuration = _minStreamDuration;
+        minStartDelay = _minStartDelay;
+    }
+
+    function streamSetup(uint256 startTime) internal returns (Stream stream) {
+        (
+            uint32 maxDepositLockDuration,
+            uint32 maxRewardLockDuration,
+            uint32 maxStreamDuration,
+            uint32 minStreamDuration,
+            uint32 minStartDelay
+        ) = defaultStreamFactory.streamCreationParams();
+
+        stream = defaultStreamFactory.createStream(
+            address(testTokenA),
+            address(testTokenB),
+            uint32(startTime), // 10 seconds in future
+            minStreamDuration,
+            maxDepositLockDuration,
+            0,
+            false
+            // false,
+            // bytes32(0)
+        );
+    }
+
+    function streamSetupIndefinite(uint256 startTime) internal returns (Stream stream) {
+        (
+            uint32 maxDepositLockDuration,
+            uint32 maxRewardLockDuration,
+            uint32 maxStreamDuration,
+            uint32 minStreamDuration,
+            uint32 minStartDelay
+        ) = defaultStreamFactory.streamCreationParams();
+
+        stream = defaultStreamFactory.createStream(
+            address(testTokenA),
+            address(testTokenB),
+            uint32(startTime), // 10 seconds in future
+            minStreamDuration,
+            maxDepositLockDuration,
+            0,
+            true
+            // false,
+            // bytes32(0)
+        );
+    }
+
+    function tokenA() public {
+        testTokenA = ERC20(address(new TestToken("Test Token A", "TTA", 18)));
+    }
+
+    function tokenAB() public {
+        testTokenA = ERC20(address(new TestToken("Test Token A", "TTA", 18)));
+        testTokenB = ERC20(address(new TestToken("Test Token B", "TTB", 18)));
+    }
+
+    function tokenABC() public {
+        testTokenA = ERC20(address(new TestToken("Test Token A", "TTA", 18)));
+        testTokenB = ERC20(address(new TestToken("Test Token B", "TTB", 18)));
+        testTokenC = ERC20(address(new TestToken("Test Token C", "TTC", 18)));
     }
 }

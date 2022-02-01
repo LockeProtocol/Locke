@@ -319,7 +319,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
 
         endStream = startTime + streamDuration;
         endDepositLock = endStream + depositLockDuration;
-        endRewardLock = endStream + rewardLockDuration;
+        endRewardLock = startTime + rewardLockDuration;
     
         // set tokens
         depositToken = _depositToken;
