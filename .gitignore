@@ -4,4 +4,4 @@ node_modules
 # Dapptools
 out/
 .env
-lib/
+cache/
