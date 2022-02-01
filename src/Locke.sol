@@ -153,7 +153,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
 
     // == slot f ==
     uint112 private redeemedRewardTokens;
-    uint32 private lastUpdate;
+    uint32 public lastUpdate;
     // ============
 
     // mapping of address to number of tokens not yet streamed over
