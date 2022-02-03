@@ -3,667 +3,21 @@ pragma solidity ^0.8.0;
 
 import "./utils/LockeTest.sol";
 
-contract TestFundStream is BaseTest {
-    function setUp() public {
-        tokenAB();
 
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
-        defaultStreamFactory.updateFeeParams(StreamFactory.GovernableFeeParams({
-            feePercent: 100,
-            feeEnabled: true
-        }));
-        fee = streamSetup(block.timestamp + minStartDelay);
-        writeBalanceOf(address(this), address(testTokenA), 1<<128);
-    }
 
-    function test_fundStreamZeroAmt() public {
-        vm.expectRevert(abi.encodeWithSignature("ZeroAmount()"));
-        stream.fundStream(0);
-    }
 
-    function test_fundStreamFundAfterStart() public {
-        vm.warp(block.timestamp + minStartDelay + minStreamDuration);
-        vm.expectRevert(abi.encodeWithSignature("NotBeforeStream()"));
-        stream.fundStream(100);
-    }
 
-    function test_fundStreamNoFees() public {
-        testTokenA.approve(address(stream), type(uint256).max);
-        uint112 amt = 1337;
 
-        uint256 gas_left = gasleft();
-        stream.fundStream(amt);
-        emit_log_named_uint(Color.Cyan, "gas_fundStream:         cold_no_fee", gas_left - gasleft());
-        {
-            (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
-            assertEq(rewardTokenAmount, amt);
-            assertEq(rewardTokenFeeAmount, 0);
-            assertEq(testTokenA.balanceOf(address(stream)), amt);
-        }
-        
 
-        // log gas usage for a second fund stream
-        gas_left = gasleft();
-        stream.fundStream(1337);
-        emit_log_named_uint(Color.Cyan, "gas_fundStream: warm_nonzero_no_fee", gas_left - gasleft());
-        {
-            (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
-            assertEq(rewardTokenAmount, 2*amt);
-            assertEq(rewardTokenFeeAmount, 0);
-            assertEq(testTokenA.balanceOf(address(stream)), 2*1337);
-        }
-    }
 
-    function test_fundStreamFees() public {
-        testTokenA.approve(address(fee), type(uint256).max);
-        
-        uint112 feeAmt = 13; // expected fee amt
-        uint112 amt    = 1337;
 
-        uint256 gas_left = gasleft();
-        fee.fundStream(amt);
-        emit_log_named_uint(Color.Cyan, "gas_fundStream:         cold", gas_left - gasleft());
-        {
-            (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount, ) = fee.tokenAmounts();
-            assertEq(rewardTokenAmount, amt - feeAmt);
-            assertEq(rewardTokenFeeAmount, feeAmt);
-            assertEq(testTokenA.balanceOf(address(fee)), 1337);
-        }
 
-        // log gas usage for a second fund stream
-        gas_left = gasleft();
-        fee.fundStream(amt);
-        emit_log_named_uint(Color.Cyan, "gas_fundStream: warm_nonzero", gas_left - gasleft());
 
-        {
-            (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount, ) = fee.tokenAmounts();
-            assertEq(rewardTokenAmount, 2*(amt - feeAmt));
-            assertEq(rewardTokenFeeAmount, 2*feeAmt);
-            assertEq(testTokenA.balanceOf(address(fee)), 2*amt);
-        }
-    }
-}
-
-contract TestWithdraw is BaseTest {
-    function setUp() public {
-        tokenAB();
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
-        (
-            startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
-        ) = stream.streamParams();
-
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
-    }
-
-    function test_withdrawZeroRevert() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        vm.expectRevert(abi.encodeWithSignature("ZeroAmount()"));
-        stream.withdraw(0);
-    }
-
-    function test_withdrawBalanceRevert() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        vm.expectRevert(abi.encodeWithSignature("BalanceError()"));
-        stream.withdraw(105);
-    }
-
-    function test_withdraw() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        uint256 gas_left = gasleft();
-        stream.withdraw(100);
-        emit_log_named_uint(Color.Cyan, "gas_withdraw: cold", gas_left - gasleft());
-        
-        LockeERC20 asLERC = LockeERC20(stream);
-        assertEq(asLERC.balanceOf(address(this)), 0);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
-        assertEq(depositTokenAmount, 0);
-
-        {
-            uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 0);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = stream.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               0);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime);
-            assertTrue(!merkleAccess);
-        }
-    }
-
-    function test_withdrawTimePassed() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-
-        vm.warp(startTime + streamDuration / 2); // move to half done
-        
-
-        uint256 gas_left = gasleft();
-        stream.withdraw(10);
-        emit_log_named_uint(Color.Cyan, "gas_withdraw: cold", gas_left - gasleft());
-        
-        LockeERC20 asLERC = LockeERC20(stream);
-        assertEq(asLERC.balanceOf(address(this)), 90);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
-        assertEq(depositTokenAmount, 90);
-
-        {
-            uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 100*50/100-10);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = stream.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               80);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       40);
-            assertEq(lastUpdate,                   startTime + streamDuration / 2);
-            assertTrue(!merkleAccess);
-        }
-    }
-}
-
-contract TestExit is BaseTest {
-    function setUp() public {
-        tokenAB();
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
-        indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-        (
-            startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
-        ) = stream.streamParams();
-
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
-    }
-
-    function test_exitZeroRevert() public {
-        testTokenB.approve(address(stream), 100);
-        vm.expectRevert(abi.encodeWithSignature("ZeroAmount()"));
-        stream.exit();
-    }
-
-    function test_exit() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        uint256 gas_left = gasleft();
-        stream.exit();
-        emit_log_named_uint(Color.Cyan, "gas_exit: cold", gas_left - gasleft());
-        
-        LockeERC20 asLERC = LockeERC20(stream);
-        assertEq(asLERC.balanceOf(address(this)), 0);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
-        assertEq(depositTokenAmount, 0);
-
-        {
-            uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 0);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = stream.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               0);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime);
-            assertTrue(!merkleAccess);
-        }
-    }
-
-    function test_exitTimePassed() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-
-        vm.warp(startTime + streamDuration / 2); // move to half done
-        
-
-        uint256 gas_left = gasleft();
-        stream.exit();
-        emit_log_named_uint(Color.Cyan, "gas_withdraw: cold", gas_left - gasleft());
-        
-        LockeERC20 asLERC = LockeERC20(stream);
-        assertEq(asLERC.balanceOf(address(this)), 50);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
-        assertEq(depositTokenAmount, 50);
-
-        {
-            uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 0);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = stream.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               0);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime + streamDuration / 2);
-            assertTrue(!merkleAccess);
-        }
-    }
-
-    function test_exitTimePassedIndefinite() public {
-        testTokenB.approve(address(indefinite), 100);
-        indefinite.stake(100);
-
-        vm.warp(startTime + streamDuration / 2); // move to half done
-        
-
-        uint256 gas_left = gasleft();
-        indefinite.exit();
-        emit_log_named_uint(Color.Cyan, "gas_withdraw: cold", gas_left - gasleft());
-        
-        LockeERC20 asLERC = LockeERC20(indefinite);
-        assertEq(asLERC.balanceOf(address(this)), 0);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = indefinite.tokenAmounts();
-        assertEq(depositTokenAmount, 50);
-
-        {
-            uint112 unstreamed = indefinite.unstreamed();
-            assertEq(unstreamed, 0);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = indefinite.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               0);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime + streamDuration / 2);
-            assertTrue(!merkleAccess);
-        }
-    }
-}
-
-contract TestStake is BaseTest {
-    function setUp() public {
-        tokenAB();
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
-        (
-            startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
-        ) = stream.streamParams();
-        endStream = startTime+streamDuration;
-
-        indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-        writeBalanceOf(address(this), address(testTokenA), 1<<128);
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
-        writeBalanceOf(alice, address(testTokenB), 1<<128);
-        writeBalanceOf(bob, address(testTokenB), 1<<128);
-    }
-
-    function test_multiUserStakeRewards() public {
-        testTokenA.approve(address(stream), type(uint256).max);
-        stream.fundStream(1000);
-
-        uint256 alicePreBal = testTokenA.balanceOf(alice);
-        vm.startPrank(alice);
-        testTokenB.approve(address(stream), 100);
-        uint256 gas_left = gasleft();
-        stream.stake(100);
-        emit_log_named_uint(Color.Cyan, "gas_stake:         cold", gas_left - gasleft());
-        vm.stopPrank();
-        
-        uint256 bobPreBal = testTokenA.balanceOf(bob);
-        vm.startPrank(bob);
-        testTokenB.approve(address(stream), 100);
-        gas_left = gasleft();
-        stream.stake(100);
-        emit_log_named_uint(Color.Cyan, "gas_stake: partial_warm", gas_left - gasleft());
-        vm.stopPrank();
-
-        vm.warp(startTime + minStreamDuration + 1); // warp to end of stream
-
-        vm.prank(alice);
-        gas_left = gasleft();
-        stream.claimReward();
-        emit_log_named_uint(Color.Cyan, "gas_claimReward:   cold", gas_left - gasleft());
-        assertEq(testTokenA.balanceOf(alice), alicePreBal + 500);
-
-        vm.prank(bob);
-        gas_left = gasleft();
-        stream.claimReward();
-        emit_log_named_uint(Color.Cyan, "gas_claimReward:   warm", gas_left - gasleft());
-        assertEq(testTokenA.balanceOf(bob), bobPreBal + 500);
-        // we leave dust :shrug:
-    }
-
-    function test_multiUserStakeRewardsHalf() public {
-        testTokenA.approve(address(stream), type(uint256).max);
-        stream.fundStream(1000);
-
-        uint256 alicePreBal = testTokenA.balanceOf(alice);
-        vm.startPrank(alice);
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        vm.stopPrank();
-
-        vm.warp(startTime + minStreamDuration / 2); // move to half done
-        
-        uint256 bobPreBal = testTokenA.balanceOf(bob);
-        vm.startPrank(bob);
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        vm.stopPrank();
-
-        vm.warp(startTime + minStreamDuration + 1); // warp to end of stream
-
-        vm.prank(alice);
-        stream.claimReward();
-        assertEq(testTokenA.balanceOf(alice), alicePreBal + 666);
-
-        vm.prank(bob);
-        stream.claimReward();
-        assertEq(testTokenA.balanceOf(bob), bobPreBal + 333);
-        // we leave dust :shrug:
-    }
-
-    function test_multiUserStakeRewardsWithWithdraw() public {
-        testTokenA.approve(address(stream), type(uint256).max);
-        stream.fundStream(1000);
-
-        uint256 alicePreBal = testTokenA.balanceOf(alice);
-        vm.startPrank(alice);
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        vm.stopPrank();
-
-
-        vm.warp(startTime + minStreamDuration / 2); // move to half done
-        
-        uint256 bobPreBal = testTokenA.balanceOf(bob);
-        vm.startPrank(bob);
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        vm.stopPrank();
-
-        vm.warp(startTime + minStreamDuration / 2 + minStreamDuration / 10);
-
-        vm.prank(alice);
-        uint256 gas_left = gasleft();
-        stream.exit();
-        emit_log_named_uint(Color.Cyan, "gas_exit: cold", gas_left - gasleft());
-
-        vm.warp(startTime + minStreamDuration + 1); // warp to end of stream
-
-
-        vm.prank(alice);
-        stream.claimReward();
-        assertEq(testTokenA.balanceOf(alice), alicePreBal + 533);
-
-        vm.prank(bob);
-        stream.claimReward();
-        assertEq(testTokenA.balanceOf(bob), bobPreBal + 466);
-    }
-
-    function test_stakeAmtRevert() public {
-        vm.expectRevert(abi.encodeWithSignature("ZeroAmount()"));
-        stream.stake(0);
-    }
-
-    function test_stakeTimeRevert() public {
-        vm.warp(endStream);
-        vm.expectRevert(abi.encodeWithSignature("NotStream()"));
-        stream.stake(100);
-    }
-
-    function test_stakeERCRevert() public {
-        vm.warp(block.timestamp + minStartDelay);
-        writeBalanceOf(address(stream), address(testTokenB), 2**112 + 1);
-        
-        testTokenB.approve(address(stream), 100);
-        vm.expectRevert(abi.encodeWithSignature("BadERC20Interaction()"));
-        stream.stake(100);
-    }
-
-    function test_stakeNoMerkle() public {
-        testTokenB.approve(address(stream), 102);
-        uint256 gas_left = gasleft();
-        stream.stake(100);
-        emit_log_named_uint(Color.Cyan, "gas_stake: cold", gas_left - gasleft());
-        LockeERC20 asLERC = LockeERC20(stream);
-        assertEq(asLERC.balanceOf(address(this)), 100);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
-        assertEq(depositTokenAmount, 100);
-
-        {
-            uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 100);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = stream.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               100);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       100);
-            assertEq(lastUpdate,                   startTime);
-            assertTrue(!merkleAccess);
-        }
-
-        // move forward 1/10th of sd
-        // round up to next second
-        vm.warp(startTime + minStreamDuration / 10 + 1);
-        uint256 rewardPerToken = stream.rewardPerToken();
-        gas_left = gasleft();
-        stream.stake(1);
-        emit_log_named_uint(Color.Cyan, "gas_stake: warm", gas_left - gasleft());
-
-        {
-            uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 91);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = stream.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, rewardPerToken);
-            assertEq(virtualBalance,               101);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       91);
-            assertEq(lastUpdate,                   block.timestamp);
-            assertTrue(!merkleAccess);
-        }
-
-        // move forward again
-        vm.warp(startTime + (2*minStreamDuration) / 10 + 1);
-        rewardPerToken = stream.rewardPerToken();
-        stream.stake(1);
-
-
-        {
-            uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 82);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = stream.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, rewardPerToken);
-            assertEq(virtualBalance,               102);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       82);
-            assertEq(lastUpdate,                   block.timestamp);
-            assertTrue(!merkleAccess);
-        }
-    }
-
-    function test_stakeIndefiniteNoMerkle() public {
-        testTokenB.approve(address(indefinite), type(uint256).max);
-        uint256 gas_left = gasleft();
-        indefinite.stake(100);
-        emit_log_named_uint(Color.Cyan, "gas_stake_indefinite: cold", gas_left - gasleft());
-        LockeERC20 asLERC = LockeERC20(indefinite);
-        // no tokens wen indefinite
-        assertEq(asLERC.balanceOf(address(this)), 0);
-
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = indefinite.tokenAmounts();
-        assertEq(depositTokenAmount, 100);
-        {
-            uint112 unstreamed = indefinite.unstreamed();
-            assertEq(unstreamed, 100);
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = indefinite.tokenStreamForAccount(address(this));
-
-            assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               100);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       100);
-            assertEq(lastUpdate,                   startTime);
-            assertTrue(!merkleAccess);
-        }
-
-        gas_left = gasleft();
-        indefinite.stake(100);
-        emit_log_named_uint(Color.Cyan, "gas_stake_indefinite: warm", gas_left - gasleft());
-    }
-}
-
-contract TestIncentive is BaseTest {
+contract Fuzz is BaseTest {
     function setUp() public {
         tokenABC();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-
-        writeBalanceOf(address(this), address(testTokenC), 1<<128);
-    }
-
-    function test_createIncentiveWithZeroAmt() public {
-        vm.expectRevert(abi.encodeWithSignature("ZeroAmount()"));
-        stream.createIncentive(address(testTokenC), 0);
-    }
-
-    function test_createIncentiveWithToken() public {
-        vm.expectRevert(abi.encodeWithSignature("BadERC20Interaction()"));
-        stream.createIncentive(address(testTokenA), 0);
-    }
-
-    function test_createIncentive() public {
-        testTokenC.approve(address(stream), 100);
-        uint256 gas_left = gasleft();
-        stream.createIncentive(address(testTokenC), 100);
-        emit_log_named_uint(Color.Cyan, "gas_createIncentive: cold", gas_left - gasleft());
-        (uint112 amt, bool flag) = stream.incentives(address(testTokenC));
-        assertTrue(flag);
-        assertEq(amt, 100);
-    }
-
-    function test_claimIncentiveCreatorRevert() public {
-        testTokenC.approve(address(stream), 100);
-        stream.createIncentive(address(testTokenC), 100);
-
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSignature("NotCreator()"));
-        stream.claimIncentive(address(testTokenC));
-    }
-
-    function test_claimIncentiveStreamRevert() public {
-        testTokenC.approve(address(stream), 100);
-        stream.createIncentive(address(testTokenC), 100);
-
-        vm.expectRevert(abi.encodeWithSignature("StreamOngoing()"));
-        stream.claimIncentive(address(testTokenC));
-    }
-
-    function test_claimIncentiveAmt() public {
-        vm.warp(block.timestamp + minStartDelay + minStreamDuration);
-        vm.expectRevert(abi.encodeWithSignature("ZeroAmount()"));
-        stream.claimIncentive(address(testTokenC));
-    }
-
-    function test_claimIncentive() public {
-        testTokenC.approve(address(stream), 100);
-        stream.createIncentive(address(testTokenC), 100);
-
-        vm.warp(block.timestamp + minStartDelay + minStreamDuration);
-
-        uint256 preBal = testTokenC.balanceOf(address(this));
-        uint256 gas_left = gasleft();
-        stream.claimIncentive(address(testTokenC));
-        emit_log_named_uint(Color.Cyan, "gas_claimIncentive: cold", gas_left - gasleft());
-
-        assertEq(testTokenC.balanceOf(address(this)), preBal + 100);
-    }
-}
-
-contract TestDeposit is BaseTest {
-    function setUp() public {
-        tokenAB();
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
-        indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-
         (
             startTime,
             streamDuration,
@@ -673,348 +27,324 @@ contract TestDeposit is BaseTest {
         endStream = startTime + streamDuration;
         endDepositLock = endStream + depositLockDuration;
 
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
+        writeBalanceOf(address(this), address(testTokenA), type(uint112).max);
+        writeBalanceOf(address(this), address(testTokenB), type(uint112).max);
+        writeBalanceOf(address(this), address(testTokenC), type(uint256).max);
+
+        writeBalanceOf(alice, address(testTokenB), type(uint96).max);
+        writeBalanceOf(bob, address(testTokenB), type(uint96).max);
     }
 
-    function test_claimDepositIndefiniteRevert() public {
-        testTokenB.approve(address(indefinite), 100);
-        indefinite.stake(100);
-        vm.warp(endDepositLock);
-        vm.expectRevert(abi.encodeWithSignature("StreamTypeError()"));
-        indefinite.claimDepositTokens(100);
+    function bound(
+        uint256 x,
+        uint256 min,
+        uint256 max
+    ) internal pure returns (uint256 result) {
+        require(max >= min, "MAX_LESS_THAN_MIN");
+
+        uint256 size = max - min;
+
+        if (max != type(uint256).max) size++; // Make the max inclusive.
+        if (size == 0) return min; // Using max would be equivalent as well.
+        // Ensure max is inclusive in cases where x != 0 and max is at uint max.
+        if (max == type(uint256).max && x != 0) x--; // Accounted for later.
+
+        if (x < min) x += size * (((min - x) / size) + 1);
+        result = min + ((x - min) % size);
+
+        // Account for decrementing x to make max inclusive.
+        if (max == type(uint256).max && x != 0) result++;
     }
 
-    function test_claimDepositAmtRevert() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        vm.warp(endDepositLock);
-        vm.expectRevert(abi.encodeWithSignature("ZeroAmount()"));
-        stream.claimDepositTokens(0);
+    // function testFuzz_invariants(
+    //     uint32 depositLock,
+    //     uint32 rewardLock,
+    //     uint32 streamDur,
+    //     uint32 startDel,
+    //     uint112 amountReward,
+    //     uint16[5] memory delays
+    // ) public {
+    //     depositLockDuration = uint32(bound(depositLock, 0, maxDepositLockDuration));
+    //     rewardLockDuration = uint32(bound(rewardLock, 0, maxRewardLockDuration));
+    //     streamDuration = uint32(bound(streamDur, minStreamDuration, maxStreamDuration));
+    //     startDel = uint32(bound(startDel, minStartDelay, minStartDelay + 24 hours));
+
+    //     startTime = uint32(block.timestamp) + startDel;
+    //     endStream = startTime + streamDuration;
+    //     endDepositLock = endStream + depositLockDuration;
+    //     endRewardLock = startTime + rewardLockDuration;
+
+
+    //     uint256 preBalA = testTokenB.balanceOf(alice);
+    //     uint256 preBalB = testTokenB.balanceOf(bob);
+    //     stream = defaultStreamFactory.createStream(
+    //         address(testTokenA),
+    //         address(testTokenB),
+    //         startTime,
+    //         streamDuration,
+    //         depositLockDuration,
+    //         rewardLockDuration,
+    //         false
+    //     );
+
+    //     testTokenA.approve(address(stream), amountReward);
+    //     stream.fundStream(amountReward);
+
+    //     uint256 t = block.timestamp;
+    //     uint256 accumDelay;
+    //     ( , , uint112 rewardsA, uint112 tokensA, ,) = stream.tokenStreamForAccount(alice);
+    //     ( , , uint112 rewardsB, uint112 tokensB, ,) = stream.tokenStreamForAccount(bob);
+    //     checkState();
+    //     uint256 actionsTaken = 0;
+    //     while (t < endDepositLock) {
+    //         for (uint256 i = 0; i < delays.length; i++) {
+    //             uint16 delay = uint16(bound(delays[i], 15, type(uint16).max / 2));
+    //             if (
+    //                 willTakeAction(block.timestamp + delay + accumDelay, alice, rewardsA, tokensA)
+    //                 || willTakeAction(block.timestamp + delay + accumDelay, bob, rewardsB, tokensB)
+    //             ) {
+    //                 emit log_named_uint("action taken", actionsTaken);
+    //                 actionsTaken += 1;
+    //                 vm.warp(block.timestamp + delay + accumDelay);
+    //                 uint112 bobBal = uint112(bound(testTokenB.balanceOf(bob) / delay, 1, type(uint112).max));
+    //                 uint112 aliceBal = uint112(bound(testTokenB.balanceOf(alice) / delay, 1, type(uint112).max));
+    //                 randomAction(alice, aliceBal, rewardsA, tokensA);
+    //                 randomAction(bob, bobBal, rewardsB, tokensB);
+    //                 t = block.timestamp;
+    //                 checkState();
+    //                 ( , , rewardsA, tokensA, ,) = stream.tokenStreamForAccount(alice);
+    //                 ( , , rewardsB, tokensB, ,) = stream.tokenStreamForAccount(bob);
+    //                 if (actionsTaken > 20) {
+    //                     break;
+    //                 }
+    //             } else {
+    //                 accumDelay += delay;
+    //             }
+    //         }
+    //         if (actionsTaken > 20) {
+    //             break;
+    //         }
+    //     }
+    //     vm.warp(endDepositLock > endRewardLock ? endDepositLock + 1 : endRewardLock + 1);
+
+    //     uint112 balAmountB = uint112(LockeERC20(address(stream)).balanceOf(bob));
+    //     if (balAmountB > 0) {
+    //         vm.startPrank(bob);
+    //         stream.claimDepositTokens(balAmountB);
+    //         if (stream.getEarned(bob) > 0) {
+    //             stream.claimReward();    
+    //         }
+    //         vm.stopPrank();
+    //     }
+
+
+    //     uint112 balAmountA = uint112(LockeERC20(address(stream)).balanceOf(alice));
+    //     if (balAmountA > 0) {
+    //         vm.startPrank(alice);
+    //         stream.claimDepositTokens(balAmountA);
+    //         if (stream.getEarned(alice) > 0) {
+    //             stream.claimReward();    
+    //         }
+    //         vm.stopPrank();
+    //     }
+
+    //     assertEq(testTokenB.balanceOf(alice), preBalA);
+    //     require(!failed, "alice bal");
+    //     assertEq(testTokenB.balanceOf(bob), preBalB);
+    //     require(!failed, "bob bal");
+    //     assertEq(testTokenB.balanceOf(address(stream)), 0);
+    //     require(!failed, "stream bal b");
+    //     assertTrue(testTokenA.balanceOf(address(stream)) < 5);
+    //     require(!failed, "stream bal A");
+    //     assertTrue(testTokenA.balanceOf(bob) > 0);
+    //     require(!failed, "bob bal A");
+    //     assertTrue(testTokenA.balanceOf(alice) > 0);
+    //     require(!failed, "alice bal A");
+    // }
+
+    function randomAction(address who, uint112 amount, uint112 rewards, uint112 tokens) internal {
+        if (block.timestamp % 5 == 0 && block.timestamp < endStream) {
+            vm.startPrank(who);
+            testTokenB.approve(address(stream), amount);
+            stream.stake(amount);
+            vm.stopPrank();
+        } else if (block.timestamp % 5 == 1 && tokens > 0 && block.timestamp < endStream) {
+            vm.prank(who);
+            stream.exit();
+        } else if (block.timestamp % 5 == 2 && rewards > 0 && block.timestamp > endRewardLock) {
+            vm.prank(who);
+            stream.claimReward();
+        } else if (block.timestamp % 5 == 3 && tokens > 0 && block.timestamp < endStream) {
+            uint112 amount = uint112(bound(amount, 1, lens.currDepositTokensNotYetStreamed(stream, who)));
+            vm.prank(who);
+            stream.withdraw(amount);
+        } else if (block.timestamp % 5 == 4 && tokens > 0 && block.timestamp > endDepositLock) {
+            uint256 max = bound(LockeERC20(address(stream)).balanceOf(who), 0, type(uint256).max);
+            vm.prank(who);
+            stream.claimDepositTokens(uint112(bound(amount, 1, max)));
+        }
     }
 
-    function test_claimDepositLockRevert() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-
-        vm.expectRevert(abi.encodeWithSignature("LockOngoing()"));
-        stream.claimDepositTokens(100);
+    function willTakeAction(uint256 timestamp, address who, uint112 rewards, uint112 tokens) internal returns (bool) {
+        if (timestamp % 5 == 0 && timestamp < endStream) {
+            return true;
+        } else if (timestamp % 5 == 1 && tokens > 0 && timestamp < endStream) {
+            return true;
+        } else if (timestamp % 5 == 2 && rewards > 0 && timestamp > endRewardLock) {
+            return true;
+        } else if (timestamp % 5 == 3 && tokens > 0 && timestamp < endStream) {
+            return true;
+        } else if (timestamp % 5 == 4 && tokens > 0 && timestamp > endDepositLock) {
+            return true;
+        }
+        return false;
     }
 
-    function test_claimDeposit() public {
-        testTokenB.approve(address(stream), 105);
-        stream.stake(105);
+    function testFuzz_recoverCorrect(
+        uint112 amountA,
+        uint112 amountB,
+        uint256 fudgeAmtA,
+        uint256 fudgeAmtB,
+        uint256 fudgeAmtC
+    ) public {
+        writeBalanceOf(address(this), address(testTokenA), type(uint256).max);
+        writeBalanceOf(address(this), address(testTokenB), type(uint256).max);
+        amountA = uint112(bound(amountA, 1, type(uint112).max));
+        amountB = uint112(bound(amountB, 1, type(uint112).max));
+
+        testTokenA.approve(address(stream), amountA);
+        stream.fundStream(amountA);
+
+        testTokenB.approve(address(stream), amountB);
+        stream.stake(amountB);
+
+        testTokenA.transfer(address(stream), fudgeAmtA);
+        testTokenB.transfer(address(stream), fudgeAmtB);
+        testTokenC.transfer(address(stream), fudgeAmtC);
 
         vm.warp(endDepositLock + 1);
-
-        uint256 preBal = testTokenB.balanceOf(address(this));
-
-        uint256 gas_left = gasleft();
-        stream.claimDepositTokens(100);
-        emit_log_named_uint(Color.Cyan, "gas_claimDeposit: cold", gas_left - gasleft());
-
-        LockeERC20 asLERC = LockeERC20(stream);
-        assertEq(asLERC.balanceOf(address(this)), 5);
-
-        uint256 redeemed = uint256(vm.load(address(stream), bytes32(uint256(10)))) >> 112;
-        assertEq(redeemed, 100);
-
-        assertEq(testTokenB.balanceOf(address(this)), preBal + 100);
-
-        gas_left = gasleft();
-        stream.claimDepositTokens(5);
-        emit_log_named_uint(Color.Cyan, "gas_claimDeposit: warm", gas_left - gasleft());
-    }
-}
-
-contract TestCreatorClaimTokens is BaseTest {
-    function setUp() public {
-        tokenAB();
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
-        indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-
-        (
-            startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
-        ) = stream.streamParams();
-        endStream = startTime + streamDuration;
-        endDepositLock = endStream + depositLockDuration;
-
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
-    }
-
-    function test_creatorClaimTokensNotIndefiniteRevert() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-
-        vm.warp(endDepositLock + 1);
-        vm.expectRevert(abi.encodeWithSignature("StreamTypeError()"));
+        stream.tokenStreamForAccount(address(this));
+        stream.claimReward();
+        stream.claimDepositTokens(amountB);
         stream.creatorClaim(address(this));
+
+        stream.recoverTokens(address(testTokenA), address(this));
+        stream.recoverTokens(address(testTokenB), address(this));
+        stream.recoverTokens(address(testTokenC), address(this));
+
+        // leave less than 0.01 tokens from rounding
+        assertTrue(testTokenA.balanceOf(address(stream)) < 10**16);
+        assertEq(testTokenB.balanceOf(address(this)), type(uint256).max);
+        assertEq(testTokenC.balanceOf(address(this)), type(uint256).max);
     }
 
-    function test_creatorClaimTokensDoubleClaimRevert() public {
-        testTokenB.approve(address(indefinite), 100);
-        indefinite.stake(100);
+    function testFuzz_stake(
+        uint32 predelay,
+        uint112 amountB
+    ) public {
+        amountB = uint112(bound(amountB, 1, type(uint112).max));
+        predelay = uint32(bound(predelay, 0, streamDuration - 1));
+        vm.warp(startTime + predelay);
 
-        vm.warp(endDepositLock + 1);
-        indefinite.creatorClaim(address(this));
+        uint256 timeRemaining;
+        unchecked {
+            timeRemaining = endStream - uint32(block.timestamp);
+        }
+        uint256 dilutedBal = dilutedBalance(amountB);
 
-        vm.expectRevert(abi.encodeWithSignature("BalanceError()"));
-        indefinite.creatorClaim(address(this));
-    }
-
-    function test_creatorClaimTokensCreatorRevert() public {
-        testTokenB.approve(address(indefinite), 100);
-        indefinite.stake(100);
-
-        vm.warp(endDepositLock + 1);
-
-        vm.expectRevert(abi.encodeWithSignature("NotCreator()"));
-        vm.prank(alice);
-        indefinite.creatorClaim(address(this));
-    }
-
-    function test_creatorClaimTokensStreamRevert() public {
-        testTokenB.approve(address(indefinite), 100);
-        indefinite.stake(100);
-
-        vm.expectRevert(abi.encodeWithSignature("StreamOngoing()"));
-        indefinite.creatorClaim(address(this));
-    }
-
-    function test_creatorClaimTokens() public {
-        testTokenB.approve(address(indefinite), 100);
-        indefinite.stake(100);
-
-        vm.warp(endDepositLock + 1);
-
-        uint256 preBal = testTokenB.balanceOf(address(this));
-        uint256 gas_left = gasleft();
-        indefinite.creatorClaim(address(this));
-        emit_log_named_uint(Color.Cyan, "gas_creatorClaim: cold", gas_left - gasleft());
-
-        assertEq(testTokenB.balanceOf(address(this)), preBal + 100);
-
-        uint256 redeemed = uint256(vm.load(address(indefinite), bytes32(uint256(10)))) >> 112;
-        assertEq(redeemed, 100);
-
-        uint8 claimed = uint8(uint256(vm.load(address(indefinite), bytes32(uint256(7)))) >> (112 + 112 + 8));
-        assertEq(claimed, 1);
-    }
-}
-
-contract TestFees is BaseTest {
-    function setUp() public {
-        tokenAB();
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
-        indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-        defaultStreamFactory.updateFeeParams(StreamFactory.GovernableFeeParams({
-            feePercent: 100,
-            feeEnabled: true
-        }));
-        fee = streamSetupIndefinite(block.timestamp + minStartDelay);
+        testTokenB.approve(address(stream), amountB);
+        stream.stake(amountB);
 
         (
-            startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
-        ) = stream.streamParams();
-        endStream = startTime + streamDuration;
-        endDepositLock = endStream + depositLockDuration;
+            uint256 lastCumulativeRewardPerToken,
+            uint256 virtualBalance,
+            uint112 rewards,
+            uint112 tokens,
+            uint32 lastUpdate,
+            bool merkleAccess
+        ) = stream.tokenStreamForAccount(address(this));
 
-        writeBalanceOf(address(this), address(testTokenA), 1<<128);
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
+        assertEq(lastCumulativeRewardPerToken, 0);
+        assertEq(virtualBalance,               dilutedBal);
+        assertEq(rewards,                      0);
+        assertEq(tokens,                       amountB);
+        assertEq(lastUpdate,                   startTime + predelay);
+        assertTrue(!merkleAccess);
     }
 
-    function test_claimFeesStreamRevert() public {
-        vm.expectRevert(abi.encodeWithSignature("StreamOngoing()"));
-        stream.claimFees(address(this));
-    }
+    function testFuzz_exit(
+        uint32 predelay,
+        uint32 nextDelay,
+        uint112 amountB
+    ) public {
+        vm.warp(startTime);
+        amountB = uint112(bound(amountB, 1, type(uint112).max));
+        predelay = uint32(bound(predelay, 0, streamDuration - 1));
+        nextDelay = uint32(bound(nextDelay, predelay, streamDuration - 1));
+        vm.warp(startTime + predelay);
 
-    function test_claimFeesGovRevert() public {
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSignature("NotGov()"));
-        stream.claimFees(address(this));
-    }
+        testTokenB.approve(address(stream), amountB);
+        stream.stake(amountB);
 
+        vm.warp(startTime + nextDelay);
+        stream.exit();
 
-    function test_claimFeesReward() public {
-        uint112 feeAmt = 13; // expected fee amt
-        uint112 amt    = 1337;
-
-        testTokenA.approve(address(fee), amt);
-        fee.fundStream(amt);
-        (, , uint112 rewardTokenFeeAmount, ) = fee.tokenAmounts();
-
-        assertEq(rewardTokenFeeAmount, feeAmt);
-
-        vm.warp(endStream);
-
-        uint256 preBal = testTokenA.balanceOf(address(this));
-
-        uint256 gas_left = gasleft();
-        fee.claimFees(address(this));
-        emit_log_named_uint(Color.Cyan, "gas_claimFeesRewardToken: cold", gas_left - gasleft());
-
-        assertEq(testTokenA.balanceOf(address(this)), preBal + feeAmt);
-
-        (, , rewardTokenFeeAmount, ) = fee.tokenAmounts();
-        assertEq(rewardTokenFeeAmount, 0);
-    }
-
-    function test_claimFeesDeposit() public {
-        uint112 amt    = 10**18;
-        uint112 feeAmt = amt * 10 / 10000; // expected fee amt
-
-        testTokenB.approve(address(fee), amt);
-        fee.stake(amt);
-
-        fee.flashloan(address(testTokenB), address(this), amt, abi.encode(true, testTokenB.balanceOf(address(this))));
-
-        vm.warp(endStream);
-        uint256 preBal = testTokenB.balanceOf(address(this));
-        uint256 gas_left = gasleft();
-        fee.claimFees(address(this));
-        emit_log_named_uint(Color.Cyan, "gas_claimFeesDepositToken: cold", gas_left - gasleft());
-
-        assertEq(testTokenB.balanceOf(address(this)), preBal + feeAmt);
-        (, , , uint112 depositTokenFees) = fee.tokenAmounts();
-        assertEq(depositTokenFees, 0);
-    }
-
-    function test_claimFeesBoth() public {        
-        uint112 feeAmt = 13; // expected fee amt
-        uint112 amt    = 1337;
-
-        testTokenA.approve(address(fee), amt);
-        fee.fundStream(amt);
-        (, , uint112 rewardTokenFeeAmount, ) = fee.tokenAmounts();
-
-        assertEq(rewardTokenFeeAmount, feeAmt);
-
-
-        uint112 amtDeposit    = 10**18;
-        uint112 feeAmtDeposit = amtDeposit * 10 / 10000; // expected fee amt
-
-        testTokenB.approve(address(fee), amtDeposit);
-        fee.stake(amtDeposit);
-
-        fee.flashloan(address(testTokenB), address(this), amtDeposit, abi.encode(true, testTokenB.balanceOf(address(this))));
-
-        vm.warp(endStream);
-
-        uint256 preBal = testTokenA.balanceOf(address(this));
-        uint256 preBalDeposit = testTokenB.balanceOf(address(this));
-
-        uint256 gas_left = gasleft();
-        fee.claimFees(address(this));
-        emit_log_named_uint(Color.Cyan, "gas_claimFeesBoth: cold", gas_left - gasleft());
-
-        assertEq(testTokenA.balanceOf(address(this)), preBal + feeAmt);
-        assertEq(testTokenB.balanceOf(address(this)), preBalDeposit + feeAmtDeposit);
-
-        (, , rewardTokenFeeAmount, ) = fee.tokenAmounts();
-        assertEq(rewardTokenFeeAmount, 0);
-
-        (, , , uint112 depositTokenFees) = fee.tokenAmounts();
-        assertEq(depositTokenFees, 0);
-    }
-}
-
-contract TestFlashloan is BaseTest {
-    function setUp() public {
-        tokenAB();
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
-
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
-    }
-
-    function test_flashloanTokenRevert() public {
-        vm.expectRevert(abi.encodeWithSignature("BadERC20Interaction()"));
-        stream.flashloan(address(123), address(0), 100, "");
-    }
-
-    function test_flashloanFeeRevert() public {
-        testTokenB.approve(address(stream), 1337);
-        stream.stake(1337);
-
-        uint256 currBal = testTokenB.balanceOf(address(this));
-        vm.expectRevert(abi.encodeWithSignature("BalanceError()"));
-        stream.flashloan(address(testTokenB), address(this), 1337, abi.encode(false, currBal));
-    }
-
-    function test_flashloan() public {
-        testTokenB.approve(address(stream), 1337);
-        stream.stake(1337);
-
-        uint256 currBal = testTokenB.balanceOf(address(this));
-
-        uint256 gas_left = gasleft();
-        stream.flashloan(address(testTokenB), address(this), 1337, abi.encode(true, currBal));
-        emit_log_named_uint(Color.Cyan, "gas_flashloan: cold", gas_left - gasleft());
-        
-        assertTrue(enteredFlashloan);
-    }
-}
-
-contract TestArbitraryCall is BaseTest {
-    function setUp() public {
-        tokenABC();
-        setupInternal();
-        stream = streamSetup(block.timestamp + minStartDelay);
         (
-            startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
-        ) = stream.streamParams();
-        endStream = startTime + streamDuration;
-        endDepositLock = endStream + depositLockDuration;
+            uint256 lastCumulativeRewardPerToken,
+            uint256 virtualBalance,
+            uint112 rewards,
+            uint112 tokens,
+            uint32 lastUpdate,
+            bool merkleAccess
+        ) = stream.tokenStreamForAccount(address(this));
 
-        writeBalanceOf(address(this), address(testTokenC), 1<<128);
+        assertEq(lastCumulativeRewardPerToken, 0);
+        assertEq(virtualBalance,               0);
+        assertEq(rewards,                      0);
+        assertEq(tokens,                       0);
+        assertEq(lastUpdate,                   startTime + nextDelay);
+        assertTrue(!merkleAccess);
     }
 
-    function test_arbitraryCallIncRevert() public {
-        testTokenC.approve(address(stream), 100);
-        stream.createIncentive(address(testTokenC), 100);
-        vm.expectRevert(abi.encodeWithSignature("StreamOngoing()"));
-        stream.arbitraryCall(address(testTokenC), "");
+    function dilutedBalance(uint112 amount) internal returns (uint256) {
+        // duration / timeRemaining * amount
+        uint32 timeRemaining;
+        // Safety:
+        //  1. dilutedBalance is only called in stake and _withdraw, which requires that time < endStream
+        unchecked {
+            timeRemaining = endStream - uint32(block.timestamp);
+        }
+
+        emit log_named_uint("time remaining", timeRemaining);
+
+        uint256 diluted = uint256(streamDuration)* amount / timeRemaining;
+
+        return amount < diluted ? diluted : amount;
     }
 
-    function test_arbitraryCallIncCall() public {
-        testTokenC.approve(address(stream), 100);
-        stream.createIncentive(address(testTokenC), 100);
-        
-        vm.warp(endStream + 30 days + 1);
-        uint256 preBal = testTokenC.balanceOf(address(this));
-        stream.arbitraryCall(address(testTokenC), abi.encodeWithSignature("transfer(address,uint256)", address(this), 100));
-    }
+    function streamAccting(uint32 lu, uint112 amount) internal view returns (uint112) {
+        uint32 acctTimeDelta = uint32(block.timestamp - lu);
 
-    function test_arbitraryCallGovRevert() public {
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSignature("NotGov()"));
-        stream.arbitraryCall(address(1), "");
-    }
+        if (acctTimeDelta > 0) {
+            // some time has passed since this user last interacted
+            // update ts not yet streamed
+            // downcast is safe as guaranteed to be a % of uint112
+            if (amount > 0) {
 
-    function test_arbitraryCallTokenRevert() public {
-        vm.expectRevert(abi.encodeWithSignature("BadERC20Interaction()"));
-        stream.arbitraryCall(address(testTokenA), "");
+                // Safety:
+                //  1. acctTimeDelta * ts.tokens: acctTimeDelta is uint32, ts.tokens is uint112, cannot overflow uint256
+                //  2. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
+                //  3. streamAmt guaranteed to be a truncated (rounded down) % of ts.tokens
+                uint112 streamAmt = uint112(uint256(acctTimeDelta) * amount / (endStream - lu));
+                require(streamAmt != 0, "streamamt");
+                amount -= streamAmt;
 
-        vm.expectRevert(abi.encodeWithSignature("BadERC20Interaction()"));
-        stream.arbitraryCall(address(testTokenB), "");
-    }
+            }
+        }
 
-    function test_arbitraryCallTransferRevert() public {
-        vm.expectRevert(abi.encodeWithSignature("BadERC20Interaction()"));
-        stream.arbitraryCall(address(testTokenC), abi.encodeWithSignature("transferFrom(address,address,uint256)", address(this), address(this), 100000));
+        return amount;
     }
 }
-
 
 
     // function test_recoverTokens() public {

@@ -90,10 +90,6 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     uint32 private immutable startTime;
     // length of stream
     uint32 private immutable streamDuration;
-    // length of time depositTokens are locked after stream ends
-    uint32 private immutable depositLockDuration;
-    // length of time rewardTokens are locked after stream ends
-    uint32 private immutable rewardLockDuration;
 
     // end of stream
     uint32 private immutable endStream;
@@ -154,6 +150,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     // == slot f ==
     uint112 private redeemedRewardTokens;
     uint32 public lastUpdate;
+    uint32 private unaccruedSeconds;
     // ============
 
     // mapping of address to number of tokens not yet streamed over
@@ -210,7 +207,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
 
         if (block.timestamp >= startTime) {
             // set lastUpdates if need be
-            if (ts.lastUpdate == 0) {
+            if (ts.lastUpdate == 0) {    
                 ts.lastUpdate = timestamp;
             }
 
@@ -223,8 +220,6 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
             ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;
 
             // update users unstreamed balance
-
-
             unchecked {
                 // Safety:
                 //  1. timestamp - ts.lastUpdate: ts.lastUpdate is guaranteed to be <= current timestamp when timestamp >= startTime        
@@ -249,20 +244,22 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
                 }
 
                 // handle global unstreamed
-                //
                 // Safety:
                 //  1. timestamp - lastUpdate: lastUpdate is guaranteed to be <= current timestamp when timestamp >= startTime
-                uint32 tdelta = timestamp - lastUpdate;
-
+                uint256 tdelta = timestamp - lastUpdate;
                 // stream tokens over
-                if (tdelta > 0 && unstreamed > 0) {
-
-                    // Safety:
-                    //  1. tdelta*unstreamed: uint32 * uint112 guaranteed to fit into uint256 so no overflow or zeroed bits
-                    //  2. endStream - lastUpdate: lastUpdate guaranteed to be less than endStream in this codepath
-                    //  3. tdelta*unstreamed/(endStream - lastUpdate): guaranteed to be less than unstreamed as its a % of unstreamed
-                    unstreamed -= uint112(uint256(tdelta) * unstreamed / (endStream - lastUpdate));
-
+                if (tdelta > 0) {
+                    if (unstreamed == 0) {
+                        // Safety:
+                        //  1. Σ tdelta guaranteed to be < uint32.max because its upper bound is streamDuration which is a uint32
+                        unaccruedSeconds += uint32(tdelta);
+                    } else {
+                        // Safety:
+                        //  1. tdelta*unstreamed: uint32 * uint112 guaranteed to fit into uint256 so no overflow or zeroed bits
+                        //  2. endStream - lastUpdate: lastUpdate guaranteed to be less than endStream in this codepath
+                        //  3. tdelta*unstreamed/(endStream - lastUpdate): guaranteed to be less than unstreamed as its a % of unstreamed
+                        unstreamed -= uint112(tdelta * unstreamed / (endStream - lastUpdate));
+                    }
                 }
 
                 // already ensure that blocktimestamp is less than endStream so guaranteed ok here
@@ -299,8 +296,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         bool _feeEnabled
     )
         LockeERC20(_depositToken, _streamId, _startTime + _streamDuration)
-        MinimallyExternallyGoverned(msg.sender) // inherit factory governance
-        public 
+        MinimallyExternallyGoverned(msg.sender) // inherit factory governance 
     {
         // No error code or msg to reduce bytecode size
         require(_rewardToken != _depositToken);
@@ -314,12 +310,9 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         // store streamParams
         startTime = _startTime;
         streamDuration = _streamDuration;
-        depositLockDuration = _depositLockDuration;
-        rewardLockDuration = _rewardLockDuration;
-
         endStream = startTime + streamDuration;
-        endDepositLock = endStream + depositLockDuration;
-        endRewardLock = startTime + rewardLockDuration;
+        endDepositLock = endStream + _depositLockDuration;
+        endRewardLock = startTime + _rewardLockDuration;
     
         // set tokens
         depositToken = _depositToken;
@@ -360,8 +353,8 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         return (
             startTime,
             streamDuration,
-            depositLockDuration,
-            rewardLockDuration
+            endDepositLock,
+            endRewardLock
         );
     }
 
@@ -382,32 +375,33 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
             return cumulativeRewardPerToken;
         } else {
             // ∆time*rewardTokensPerSecond*oneDepositToken / totalVirtualBalance
-            uint256 tdelta;
+            uint256 rewards;
             // Safety:
             //  1. lastApplicableTime has the same bounds as lastUpdate for minimum, current, and max
+            //  2. lastApplicableTime() - lastUpdate guaranteed to be <= streamDuration
+            //  3. streamDuration*rewardTokenAmount*depositDecimalOne is guaranteed to not overflow in `fundStream`
+            //  4. streamDuration and totalVirtualBalance guaranteed to not be 0
+            // NOTE: this causes rounding down. This leaves a bit of dust in the contract
+            // because when we do rewardDelta calculation for users, its basically (currUnderestimateRPT - storedUnderestimateRPT) 
             unchecked {
-                tdelta = lastApplicableTime() - lastUpdate;
+                rewards = (uint256(lastApplicableTime() - lastUpdate) * rewardTokenAmount * depositDecimalsOne) / streamDuration / totalVirtualBalance;
             }
-            return cumulativeRewardPerToken + (
-                (tdelta * rewardTokenAmount * depositDecimalsOne/streamDuration) 
-                / totalVirtualBalance
-            );
+            return cumulativeRewardPerToken + rewards;
         }
     }
 
     function dilutedBalance(uint112 amount) internal view returns (uint256) {
         // duration / timeRemaining * amount
-        if (block.timestamp < startTime) {
-            return amount;
-        } else {
-            uint32 timeRemaining;
-            // Safety:
-            //  1. dilutedBalance is only called in stake and _withdraw, which requires that time < endStream
-            unchecked {
-                timeRemaining = endStream - uint32(block.timestamp);
-            }
-            return ((uint256(streamDuration) * amount * 10**6) / timeRemaining) / 10**6;
+        uint32 timeRemaining;
+        // Safety:
+        //  1. dilutedBalance is only called in stake and _withdraw, which requires that time < endStream
+        unchecked {
+            timeRemaining = endStream - uint32(block.timestamp);
         }
+        uint256 diluted = uint256(streamDuration) * amount / timeRemaining;
+
+        // if amount is greater than diluted, the stream hasnt started yet
+        return amount < diluted ? diluted : amount;
     }
 
     function getEarned(address who) public view returns (uint256) {
@@ -422,7 +416,9 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         unchecked { rewardDelta = currCumRewardPerToken - ts.lastCumulativeRewardPerToken; }
 
         // TODO: Think more about the bounds on ts.virtualBalance. This mul may be able to be unchecked?
-        return uint112(ts.virtualBalance * rewardDelta / depositDecimalsOne) + ts.rewards;
+        // NOTE: This can cause small rounding issues that will leave dust in the contract
+        uint112 reward = uint112(ts.virtualBalance * rewardDelta / depositDecimalsOne);
+        return reward + ts.rewards;
     }
 
     /**
@@ -431,7 +427,6 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     function fundStream(uint112 amount) external lock {
         if (amount == 0) revert ZeroAmount();
         if (block.timestamp >= startTime) revert NotBeforeStream();
-        uint112 amt;
 
         // transfer from sender
         uint256 prevBal = ERC20(rewardToken).balanceOf(address(this));
@@ -439,31 +434,36 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         uint256 newBal = ERC20(rewardToken).balanceOf(address(this));
         if (newBal > type(uint112).max || newBal <= prevBal) revert BadERC20Interaction();
 
+        uint256 amt;
         // Safety:
         //  1. newBal already checked above
         unchecked {
-            amount = uint112(newBal - prevBal);
+            amt = newBal - prevBal;
         }
 
         // if fee is enabled, take a fee
         if (feeEnabled) {
             // Safety:
-            //  1. feePercent & y are casted up to u256, so cannot overflow when multiplying
-            //  2. downcast is safe because (x*y)/MAX_X is guaranteed to be smaller than y which is uint112
-            //  3. amount is guaranteed to be greater than feeAmt
-            uint112 feeAmt;
+            //  1. amt is u256 but max possible value is 2**112, so cannot overflow when multiplying
+            //  2. amt is guaranteed to be greater than feeAmt
+            uint256 feeAmt;
             unchecked {
-                feeAmt = uint112(uint256(feePercent) * uint256(amount) / 10000); 
-                amt = amount - feeAmt;
+                feeAmt = amt * feePercent / 10000; 
+                amt = amt - feeAmt;
             }
 
             // since this operation can be repeated, we cannot assume no overflow so use checked math
-            rewardTokenFeeAmount += feeAmt;
-            rewardTokenAmount += amt;
+            // downcast is safe because (x*y)/MAX_X is guaranteed to be smaller than y which is at most uint112
+            rewardTokenFeeAmount += uint112(feeAmt);
+            rewardTokenAmount += uint112(amt);
         } else {
-            amt = amount;
-            rewardTokenAmount += amt;
+            // downcast is safe as we already ensure < 2**112
+            rewardTokenAmount += uint112(amt);
         }
+
+        // protect against rewardPerToken overflow revert
+        // this will revert with overflow if it would cause `rewardPerToken` to revert
+        uint256 _safeAmtCheck_ = uint256(streamDuration) * rewardTokenAmount * depositDecimalsOne;
         
         emit StreamFunded(amt);
     }
@@ -485,9 +485,16 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         uint256 newBal = ERC20(depositToken).balanceOf(address(this));
         if (newBal > type(uint112).max || newBal <= prevBal) revert BadERC20Interaction();
         
-        uint112 trueDepositAmt = uint112(newBal - prevBal);
+
+        uint112 trueDepositAmt;
+        // Safety:
+        //  1. we already ensured newBal > prevBal
+        unchecked {
+            trueDepositAmt = uint112(newBal - prevBal);
+        }
 
         depositTokenAmount += trueDepositAmt;
+
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
         ts.tokens += trueDepositAmt;
 
@@ -522,10 +529,34 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         ts.tokens -= amount;
 
         uint256 virtualBal = dilutedBalance(amount);
-        ts.virtualBalance -= virtualBal;
-        totalVirtualBalance -= virtualBal;
+        uint256 currVbal = ts.virtualBalance;
+
+
+        // saturating subtraction - this is to account for
+        // small rounding errors induced by small durations
+        if (currVbal < virtualBal) {
+            // if we zero out virtual balance, force the user to take
+            // the remaining tokens back
+            ts.virtualBalance = 0;
+            amount += ts.tokens;
+            ts.tokens = 0;
+            totalVirtualBalance -= currVbal;
+        } else {
+            ts.virtualBalance -= virtualBal;
+            totalVirtualBalance -= virtualBal;
+        }
+        
         depositTokenAmount -= amount;
-        unstreamed -= amount;
+
+        // Given how we calculate an individual's tokens vs global unstreamed tokens,
+        // there can be rounding such that these are slightly off from each other
+        // in that case, just do saturating subtraction
+        if (amount > unstreamed) {
+            unstreamed = 0;
+        } else {
+            unstreamed -= amount;
+        }
+        
         if (!isIndefinite) {
             _burn(msg.sender, amount);
         }
@@ -616,20 +647,37 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     */ 
     function claimReward() external lock {
         if (block.timestamp < endRewardLock) revert LockOngoing();
+        
+        emit StreamFunded(totalVirtualBalance);
 
-        TokenStream storage ts = tokenStreamForAccount[msg.sender];
-        // accumulate reward per token info
-        cumulativeRewardPerToken = rewardPerToken();
+        uint112 rewardAmt;
+        if (block.timestamp < endStream) {
+            updateStreamInternal();
+            rewardAmt = tokenStreamForAccount[msg.sender].rewards;
+            tokenStreamForAccount[msg.sender].rewards = 0;
+        } else {
+            TokenStream storage ts = tokenStreamForAccount[msg.sender];
+            // accumulate reward per token info
+            cumulativeRewardPerToken = rewardPerToken();
 
-        // update user rewards
-        ts.rewards = earned(ts, cumulativeRewardPerToken);
-        // update users last cumulative reward per token
-        ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;
+            // update user rewards
+            rewardAmt = earned(ts, cumulativeRewardPerToken);
 
-        lastUpdate = lastApplicableTime();
+            // delete the user
+            // if its indefinite, they have no more claim over any tokens in the pool
+            // if its not, we use the receipt token balance for token claims and there is no
+            // way to have any remaining rewards because the stream is over
+            delete tokenStreamForAccount[msg.sender];
 
-        uint112 rewardAmt = ts.rewards;
-        ts.rewards = 0;
+
+            // if we havent updated since endStream, update lastupdate and unaccrued seconds
+            uint32 tdelta = lastApplicableTime() - lastUpdate;
+            if (unstreamed == 0 && tdelta != 0) {
+                unaccruedSeconds += tdelta;
+            }
+
+            lastUpdate = lastApplicableTime(); 
+        }
 
         if (rewardAmt == 0) revert ZeroAmount();
 
@@ -645,24 +693,41 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      *  @dev Allows a creator to claim tokens if the stream has ended & this contract is indefinite
     */ 
     function creatorClaim(address destination) external lock {
-        // can only claim when its an indefinite lockup
-        if (!isIndefinite) revert StreamTypeError();
-
         // only can claim once
         if (claimedDepositTokens) revert BalanceError();
         // creator is claiming
         if (msg.sender != streamCreator) revert NotCreator();
         // stream ended
         if (block.timestamp < endStream) revert StreamOngoing();
-        
-        uint112 amount = depositTokenAmount;
-        redeemedDepositTokens = amount;
+
+        uint32 tdelta = lastApplicableTime() - lastUpdate;
+        if (unstreamed == 0 && tdelta != 0) {
+            unaccruedSeconds += tdelta;
+            lastUpdate = lastApplicableTime();
+        }
+
+        // handle unaccounted for reward tokens
+        uint256 actualStreamedTime = uint256(streamDuration - unaccruedSeconds);
+        uint256 actualRewards = actualStreamedTime * rewardTokenAmount / streamDuration;
+        uint256 totalRewardTokenNotGiven = rewardTokenAmount - actualRewards;
+        emit StreamFunded(unaccruedSeconds);
+        emit StreamFunded(actualRewards);
+        emit StreamFunded(rewardTokenAmount);
+        if (totalRewardTokenNotGiven > 0) {
+            ERC20(rewardToken).safeTransfer(streamCreator, totalRewardTokenNotGiven);
+        }
+
         claimedDepositTokens = true;
 
+        // can only claim when its an indefinite lockup
+        if (isIndefinite) {
+            uint112 amount = depositTokenAmount;
+            redeemedDepositTokens = amount;
 
-        ERC20(depositToken).safeTransfer(destination, amount);
+            ERC20(depositToken).safeTransfer(destination, amount);
 
-        emit TokensClaimed(destination, amount);
+            emit TokensClaimed(destination, amount);
+        }
     }
 
     /**
@@ -726,7 +791,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         }
         
         if (token == rewardToken) {
-            if (block.timestamp < endRewardLock) revert LockOngoing();
+            if (block.timestamp < endStream) revert StreamOngoing();
             // check current balance vs internal balance
             //
             // NOTE: if a token rebases, i.e. changes balance out from under us,
@@ -821,6 +886,11 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     }
 }
 
+// Bytecode size hack - allows StreamFactory to be larger than 24kb - size(type(Stream).creationCode)
+contract ExternalCreate2 {
+    bytes public constant creationCode = type(Stream).creationCode;
+}
+
 contract StreamFactory is MinimallyGoverned {
 
     // ======= Structs ========
@@ -841,7 +911,8 @@ contract StreamFactory is MinimallyGoverned {
     GovernableStreamParams public streamCreationParams;
     GovernableFeeParams public feeParams;
     uint64 public currStreamId; 
-
+    
+    ExternalCreate2 public immutable externalCreate2;
     uint16 constant MAX_FEE_PERCENT = 500; // 500/10000 == 5%
 
     // =======  Events  =======
@@ -855,7 +926,8 @@ contract StreamFactory is MinimallyGoverned {
     error LockDurationError();
     error GovParamsError();
 
-    constructor(address _governor, address _emergency_governor) public MinimallyGoverned(_governor) {
+    constructor(address _governor, address _emergency_governor, ExternalCreate2 _externalCreate2) public MinimallyGoverned(_governor) {
+        externalCreate2 = _externalCreate2;
         streamCreationParams = GovernableStreamParams({
             maxDepositLockDuration: 52 weeks,
             maxRewardLockDuration: 52 weeks,
@@ -897,7 +969,7 @@ contract StreamFactory is MinimallyGoverned {
         currStreamId += 1;
         bytes32 salt = bytes32(uint256(that_stream));
 
-        Stream stream = new Stream{salt: salt}(
+        bytes memory bytecode = abi.encodePacked(externalCreate2.creationCode(), abi.encode(
             that_stream,
             msg.sender,
             isIndefinite,
@@ -909,7 +981,14 @@ contract StreamFactory is MinimallyGoverned {
             rewardLockDuration,
             feeParams.feePercent,
             feeParams.feeEnabled
-        );
+        ));
+
+        Stream stream;
+        assembly {
+            // Deploy a new contract with our pre-made bytecode via CREATE2.
+            // We start 32 bytes into the code to avoid copying the byte length.
+            stream := create2(0, add(bytecode, 32), mload(bytecode), salt)
+        }
 
         emit StreamCreated(that_stream, address(stream));
 

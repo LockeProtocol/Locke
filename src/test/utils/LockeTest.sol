@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "../../Locke.sol";
+import "../../LockeLens.sol";
 import "solmate/tokens/ERC20.sol";
 import "./TestToken.sol";
 import "forge-std/Vm.sol";
@@ -100,6 +101,30 @@ contract DSTestPlus is DSTest {
     function emit_log_named_string(Color color, string memory key, string memory val)  internal{
         emit log_named_string(string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val);
     }
+
+    function assertRelApproxEq(
+        uint256 a,
+        uint256 b,
+        uint256 maxPercentDelta
+    ) internal virtual {
+        uint256 delta = a > b ? a - b : b - a;
+        if (delta == 0) {
+            return;
+        }
+
+        uint256 abs = a > b ? a : b;
+
+        uint256 percentDelta = (delta * 1e18) / abs;
+
+        if (percentDelta > maxPercentDelta) {
+            emit log("Error: a ~= b not satisfied [uint]");
+            emit log_named_uint("    Expected", a);
+            emit log_named_uint("      Actual", b);
+            emit log_named_uint(" Max % Delta", maxPercentDelta);
+            emit log_named_uint("     % Delta", percentDelta);
+            fail();
+        }
+    }
 }
 
 
@@ -115,6 +140,8 @@ abstract contract BaseTest is DSTestPlus {
     address alice;
     address bob;
 
+    LockeLens lens;
+    
     ERC20 testTokenA;
     ERC20 testTokenB;
     ERC20 testTokenC;
@@ -140,7 +167,30 @@ abstract contract BaseTest is DSTestPlus {
 
     uint32 endStream;
     uint32 endDepositLock;
-    uint32 endRewardLockLock;
+    uint32 endRewardLock;
+
+    function checkState() internal {
+
+        // virtual balance invariant
+        ( , uint256 virtualBalanceA, uint112 rewardsA, uint112 tokensA, uint32 luA,) = stream.tokenStreamForAccount(alice);
+        ( , uint256 virtualBalanceB, uint112 rewardsB, uint112 tokensB, uint32 luB,) = stream.tokenStreamForAccount(bob);
+        ( , uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu,) = stream.tokenStreamForAccount(address(this));
+        uint32 max3 = luA > luB ? luA : luB;
+        max3 = max3 > lu ? max3 : lu;
+        if (max3 != 0) {
+            assertEq(max3, stream.lastUpdate());
+        }
+        require(!failed, "lastupdate");
+
+
+
+        // receipt token invariant
+        if (!stream.isIndefinite()) {
+            assertEq(testTokenB.balanceOf(address(stream)), LockeERC20(address(stream)).totalSupply());
+        }
+        require(!failed, "receipt token invariant");
+        
+    }
 
     function setupUser(bool writeBalances) internal returns (address user) {
         user = address(nextUser);
@@ -187,10 +237,15 @@ abstract contract BaseTest is DSTestPlus {
     }
 
     function setupInternal() public {
+        vm.warp(1640995200); // jan 1, 2022
+        vm.label(address(this), "TestContract");
         alice = address(nextUser);
+        vm.label(alice, "Alice");
         nextUser++;
         bob = address(nextUser);
-        defaultStreamFactory = new StreamFactory(address(this), address(this));
+        vm.label(bob, "Bob");
+        ExternalCreate externalCreate = new ExternalCreate();
+        defaultStreamFactory = new StreamFactory(address(this), address(this), externalCreate);
 
         (
             uint32 _maxDepositLockDuration,
@@ -204,6 +259,10 @@ abstract contract BaseTest is DSTestPlus {
         maxStreamDuration = _maxStreamDuration;
         minStreamDuration = _minStreamDuration;
         minStartDelay = _minStartDelay;
+
+        lens = new LockeLens();
+
+        vm.label(address(lens), "Lens");
     }
 
     function streamSetup(uint256 startTime) internal returns (Stream stream) {
@@ -226,6 +285,7 @@ abstract contract BaseTest is DSTestPlus {
             // false,
             // bytes32(0)
         );
+        vm.label(address(stream), "Stream");
     }
 
     function streamSetupIndefinite(uint256 startTime) internal returns (Stream stream) {
@@ -248,20 +308,29 @@ abstract contract BaseTest is DSTestPlus {
             // false,
             // bytes32(0)
         );
+
+        vm.label(address(stream), "Indefinite");
     }
 
     function tokenA() public {
+
         testTokenA = ERC20(address(new TestToken("Test Token A", "TTA", 18)));
+        vm.label(address(testTokenA), "TestTokenA");
     }
 
     function tokenAB() public {
         testTokenA = ERC20(address(new TestToken("Test Token A", "TTA", 18)));
         testTokenB = ERC20(address(new TestToken("Test Token B", "TTB", 18)));
+        vm.label(address(testTokenA), "TestTokenA");
+        vm.label(address(testTokenB), "TestTokenB");
     }
 
     function tokenABC() public {
         testTokenA = ERC20(address(new TestToken("Test Token A", "TTA", 18)));
         testTokenB = ERC20(address(new TestToken("Test Token B", "TTB", 18)));
         testTokenC = ERC20(address(new TestToken("Test Token C", "TTC", 18)));
+        vm.label(address(testTokenA), "TestTokenA");
+        vm.label(address(testTokenB), "TestTokenB");
+        vm.label(address(testTokenC), "TestTokenC");
     }
 }
