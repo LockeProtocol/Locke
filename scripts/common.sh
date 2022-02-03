@@ -61,7 +61,7 @@ deploy() {
 	ARGS=${@:3}
 
 	# find file path
-	CONTRACT_PATH=$(find . -name $2)
+	CONTRACT_PATH=$(find ./src -name $2)
 	CONTRACT_PATH=${CONTRACT_PATH:2}
 
 	# select the filename and the contract in it

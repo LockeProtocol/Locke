@@ -19,7 +19,7 @@ error() {
     exit 1
 }
 
-export DAPP_TESTNET_PERIOD=15
+export DAPP_TESTNET_PERIOD=5
 
 # launch the testnet
 dapp testnet --dir "$TMPDIR" &
