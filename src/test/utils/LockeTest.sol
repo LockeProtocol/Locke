@@ -244,8 +244,9 @@ abstract contract BaseTest is DSTestPlus {
         nextUser++;
         bob = address(nextUser);
         vm.label(bob, "Bob");
-        ExternalCreate externalCreate = new ExternalCreate();
-        defaultStreamFactory = new StreamFactory(address(this), address(this), externalCreate);
+        StreamCreation externalCreate = new StreamCreation();
+        MerkleStreamCreation externalCreate2 = new MerkleStreamCreation();
+        defaultStreamFactory = new StreamFactory(address(this), address(this), externalCreate, externalCreate2);
 
         (
             uint32 _maxDepositLockDuration,

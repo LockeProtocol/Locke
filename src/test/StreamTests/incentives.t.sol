@@ -1,6 +1,6 @@
 pragma solidity 0.8.11;
 
-import "./utils/LockeTest.sol";
+import "../utils/LockeTest.sol";
 
 contract TestIncentive is BaseTest {
     function setUp() public {
