@@ -2,6 +2,7 @@
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
+import "../../interfaces/IMinimallyGoverned.sol";
 
 contract TestArbitraryCall is BaseTest {
     function setUp() public {
@@ -37,7 +38,7 @@ contract TestArbitraryCall is BaseTest {
 
     function test_arbitraryCallGovRevert() public {
         vm.prank(bob);
-        vm.expectRevert(MinimallyGoverned.NotGov.selector);
+        vm.expectRevert(IMinimallyGoverned.NotGov.selector);
         stream.arbitraryCall(address(1), "");
     }
 

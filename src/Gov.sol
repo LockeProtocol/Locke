@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
-import "./interfaces/IGov.sol";
+import "./interfaces/IMinimallyGoverned.sol";
 
-contract MinimallyGoverned is IGov {
+contract MinimallyGoverned is IMinimallyGoverned {
     address public override gov;
     address public override pendingGov;
-
-    error NotPending();
-    error NotGov();
-
-    event NewGov(address indexed oldGov, address indexed newGov);
-    event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
 
     constructor(address _governor) {
         gov = _governor;

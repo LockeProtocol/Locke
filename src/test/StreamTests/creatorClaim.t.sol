@@ -78,10 +78,10 @@ contract TestCreatorClaimTokens is BaseTest {
         
         assertEq(testTokenB.balanceOf(address(this)), preBal + 100);
 
-        uint256 redeemed = uint256(vm.load(address(indefinite), bytes32(uint256(10)))) >> 112;
+        uint256 redeemed = (uint256(vm.load(address(indefinite), bytes32(uint256(10)))) << 32) >> (112 + 32);
         assertEq(redeemed, 100);
 
-        uint8 claimed = uint8(uint256(vm.load(address(indefinite), bytes32(uint256(7)))) >> (112 + 112 + 8));
+        uint8 claimed = uint8(uint256(vm.load(address(indefinite), bytes32(uint256(10)))) >> (112 + 112));
         assertEq(claimed, 1);
     }
 }

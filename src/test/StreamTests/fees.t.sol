@@ -3,6 +3,7 @@ pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
 import "../../interfaces/IStreamFactory.sol";
+import "../../interfaces/IMinimallyGoverned.sol";
 
 contract TestFees is BaseTest {
     function setUp() public {
@@ -35,7 +36,7 @@ contract TestFees is BaseTest {
 
     function test_claimFeesGovRevert() public {
         vm.prank(bob);
-        vm.expectRevert(MinimallyGoverned.NotGov.selector);
+        vm.expectRevert(IMinimallyGoverned.NotGov.selector);
         stream.claimFees(address(this));
     }
 

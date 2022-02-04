@@ -68,23 +68,31 @@ contract Stream is IStream, LockeERC20, MinimallyExternallyGoverned {
     // ============
 
     // == slot b ==
+    // amount of reward tokens taken by the protocol as a fee
     uint112 private rewardTokenFeeAmount;
+    // amount of deposit tokens earned by the protocol from flashloan fees
     uint112 private depositTokenFlashloanFeeAmount;
+    // reentrancy lock
     uint8 private unlocked = 1;
-    bool private claimedDepositTokens;
     // ============
 
     // == slot c ==
+    // accumulator for reward tokens allocated
     uint256 private cumulativeRewardPerToken;
     // ============
 
     // == slot d ==
+    // total virtual balance
     uint256 private totalVirtualBalance;
     // ============
 
     // == slot e ==
+    // unstreamed deposit tokens
     uint112 public unstreamed;
+    // total claimed deposit tokens (either by depositors or stream creator)
     uint112 private redeemedDepositTokens;
+    // whether stream creator has claimed deposit tokens
+    bool private claimedDepositTokens;
     // ============
 
     // == slot f ==
@@ -238,7 +246,9 @@ contract Stream is IStream, LockeERC20, MinimallyExternallyGoverned {
     
         streamCreator = creator;
 
-        depositDecimalsOne = uint112(10**ERC20(depositToken).decimals());
+        uint256 one = ERC20(depositToken).decimals();
+        if (one > 33) revert BadERC20Interaction();
+        depositDecimalsOne = uint112(10**one);
 
         // set lastUpdate to startTime to reduce codesize and first users gas
         lastUpdate = startTime;
