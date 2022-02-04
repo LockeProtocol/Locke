@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.0;
+pragma solidity 0.8.11;
 
 import "./LockeERC20.sol";
 import "solmate/utils/SafeTransferLib.sol";
@@ -16,19 +16,19 @@ contract MinimallyGoverned {
     event NewGov(address indexed oldGov, address indexed newGov);
     event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
 
-    constructor(address _governor) public {
+    constructor(address _governor) {
         gov = _governor;
     }
 
     /// Update pending governor
-    function setPendingGov(address newPendingGov) governed public {
+    function setPendingGov(address newPendingGov) governed external {
         address old = pendingGov;
         pendingGov = newPendingGov;
         emit NewPendingGov(old, newPendingGov);
     }
 
     /// Accepts governorship
-    function acceptGov() public {
+    function acceptGov() external {
         if (pendingGov != msg.sender) revert NotPending();
         address old = gov;
         gov = pendingGov;
@@ -36,7 +36,7 @@ contract MinimallyGoverned {
     }
 
     /// Remove governor
-    function __abdicate() governed public {
+    function __abdicate() governed external {
         address old = gov;
         gov = address(0);
         emit NewGov(old, address(0));
@@ -335,21 +335,21 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     /**
      * @dev Returns relevant internal token amounts
     **/
-    function tokenAmounts() public view returns (uint112, uint112, uint112, uint112) {
+    function tokenAmounts() external view returns (uint112, uint112, uint112, uint112) {
         return (rewardTokenAmount, depositTokenAmount, rewardTokenFeeAmount, depositTokenFlashloanFeeAmount);
     }
 
     /**
      * @dev Returns fee parameters
     **/
-    function feeParams() public view returns (uint16, bool) {
+    function feeParams() external view returns (uint16, bool) {
         return (feePercent, feeEnabled);
     }
 
     /**
      * @dev Returns stream parameters
     **/
-    function streamParams() public view returns (uint32,uint32,uint32,uint32) {
+    function streamParams() external view returns (uint32,uint32,uint32,uint32) {
         return (
             startTime,
             streamDuration,
@@ -404,7 +404,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         return amount < diluted ? diluted : amount;
     }
 
-    function getEarned(address who) public view returns (uint256) {
+    function getEarned(address who) external view returns (uint256) {
         TokenStream storage ts = tokenStreamForAccount[who];
         return earned(ts, rewardPerToken());
     }
@@ -887,285 +887,5 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         uint256 postDepositTokenBalance = ERC20(depositToken).balanceOf(address(this));
         uint256 postRewardTokenBalance = ERC20(rewardToken).balanceOf(address(this));
         if (preDepositTokenBalance != postDepositTokenBalance || preRewardTokenBalance != postRewardTokenBalance) revert BalanceError();
-    }
-}
-
-library MerkleProof {
-    function verify(
-        bytes32[] memory proof,
-        bytes32 root,
-        bytes32 leaf
-    ) internal pure returns (bool) {
-        return processProof(proof, leaf) == root;
-    }
-
-    function processProof(bytes32[] memory proof, bytes32 leaf) internal pure returns (bytes32) {
-        bytes32 computedHash = leaf;
-        for (uint256 i = 0; i < proof.length; i++) {
-            bytes32 proofElement = proof[i];
-            if (computedHash <= proofElement) {
-                // Hash(current computed hash + current element of the proof)
-                computedHash = _efficientHash(computedHash, proofElement);
-            } else {
-                // Hash(current element of the proof + current computed hash)
-                computedHash = _efficientHash(proofElement, computedHash);
-            }
-        }
-        return computedHash;
-    }
-
-    function _efficientHash(bytes32 a, bytes32 b) private pure returns (bytes32 value) {
-        assembly {
-            mstore(0x00, a)
-            mstore(0x20, b)
-            value := keccak256(0x00, 0x40)
-        }
-    }
-}
-
-contract MerkleStream is Stream {
-
-    bytes32 public immutable merkleRoot;
-
-    constructor(
-        uint64 _streamId,
-        address creator,
-        bool _isIndefinite,
-        address _rewardToken,
-        address _depositToken,
-        uint32 _startTime,
-        uint32 _streamDuration,
-        uint32 _depositLockDuration,
-        uint32 _rewardLockDuration,
-        uint16 _feePercent,
-        bool _feeEnabled,
-        bytes32 _merkleRoot
-    )
-        Stream(
-            _streamId,
-            creator,
-            _isIndefinite,
-            _rewardToken,
-            _depositToken,
-            _startTime,
-            _streamDuration,
-            _depositLockDuration,
-            _rewardLockDuration,
-            _feePercent,
-            _feeEnabled
-        )
-    {
-        merkleRoot = _merkleRoot;
-    }
-
-    error NoAccess();
-    function stake(uint112 amount, bytes32[] memory proof) external lock updateStream {
-        if (!MerkleProof.verify(proof, merkleRoot, bytes32(bytes20(msg.sender)))) revert NoAccess();
-        tokenStreamForAccount[msg.sender].merkleAccess = true;
-        _stake(amount);
-    }
-
-    function stake(uint112 amount) external override lock updateStream {
-        if (!tokenStreamForAccount[msg.sender].merkleAccess) revert NoAccess();
-        _stake(amount);
-    }
-}
-
-// Bytecode size hack - allows StreamFactory to be larger than 24kb - size(type(Stream).creationCode)
-contract StreamCreation {
-    bytes public constant creationCode = type(Stream).creationCode;
-}
-
-contract MerkleStreamCreation {
-    bytes public constant creationCode = type(MerkleStream).creationCode;
-}
-
-contract StreamFactory is MinimallyGoverned {
-
-    // ======= Structs ========
-    struct GovernableStreamParams {
-        uint32 maxDepositLockDuration;
-        uint32 maxRewardLockDuration;
-        uint32 maxStreamDuration;
-        uint32 minStreamDuration;
-        uint32 minStartDelay;
-    }
-
-    struct GovernableFeeParams {
-        uint16 feePercent;
-        bool feeEnabled;
-    }
-
-    // ======= Storage ========
-    GovernableStreamParams public streamCreationParams;
-    GovernableFeeParams public feeParams;
-    uint64 public currStreamId; 
-    
-    StreamCreation public immutable streamCreation;
-    MerkleStreamCreation public immutable merkleStreamCreation;
-    uint16 constant MAX_FEE_PERCENT = 500; // 500/10000 == 5%
-
-    // =======  Events  =======
-    event StreamCreated(uint256 indexed stream_id, address stream_addr);
-    event StreamParametersUpdated(GovernableStreamParams oldParams, GovernableStreamParams newParams);
-    event FeeParametersUpdated(GovernableFeeParams oldParams, GovernableFeeParams newParams);
-
-    // ======= Errors =========
-    error StartTimeError();
-    error StreamDurationError();
-    error LockDurationError();
-    error GovParamsError();
-
-    constructor(
-        address _governor,
-        address _emergency_governor,
-        StreamCreation _streamCreation,
-        MerkleStreamCreation _merkleStreamCreation
-    )
-        public 
-        MinimallyGoverned(_governor)
-    {
-        streamCreation = _streamCreation;
-        merkleStreamCreation = _merkleStreamCreation;
-        streamCreationParams = GovernableStreamParams({
-            maxDepositLockDuration: 52 weeks,
-            maxRewardLockDuration: 52 weeks,
-            maxStreamDuration: 2 weeks,
-            minStreamDuration: 1 hours,
-            minStartDelay: 1 days
-        });
-    }
-
-    /**
-     * @dev Deploys a minimal contract pointing to streaming logic. This contract will also be the token contract
-     * for the receipt token. It custodies the depositTokens until depositLockDuration is complete. After
-     * lockDuration is completed, the depositTokens can be claimed by the original depositors
-     * 
-    **/
-    function createStream(
-        address rewardToken,
-        address depositToken,
-        uint32 startTime,
-        uint32 streamDuration,
-        uint32 depositLockDuration,
-        uint32 rewardLockDuration,
-        bool isIndefinite
-    )
-        public
-        returns (Stream)
-    {
-        // perform checks
-
-        {
-            if (startTime < block.timestamp + streamCreationParams.minStartDelay) revert StartTimeError();
-            if (streamDuration < streamCreationParams.minStreamDuration || streamDuration > streamCreationParams.maxStreamDuration) revert StreamDurationError();
-            if (depositLockDuration > streamCreationParams.maxDepositLockDuration || rewardLockDuration > streamCreationParams.maxRewardLockDuration) revert LockDurationError();
-        }
-        
-
-        // TODO: figure out sane salt, i.e. streamid + x? streamid guaranteed to be unique
-        uint64 that_stream = currStreamId;
-        currStreamId += 1;
-        bytes32 salt = bytes32(uint256(that_stream));
-
-        bytes memory bytecode = abi.encodePacked(streamCreation.creationCode(), abi.encode(
-            that_stream,
-            msg.sender,
-            isIndefinite,
-            rewardToken,
-            depositToken,
-            startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration,
-            feeParams.feePercent,
-            feeParams.feeEnabled
-        ));
-
-        Stream stream;
-        assembly {
-            // Deploy a new contract with our pre-made bytecode via CREATE2.
-            // We start 32 bytes into the code to avoid copying the byte length.
-            stream := create2(0, add(bytecode, 32), mload(bytecode), salt)
-        }
-
-        emit StreamCreated(that_stream, address(stream));
-
-        return stream;
-    }
-
-     /**
-     * @dev Deploys a minimal contract pointing to streaming logic. This contract will also be the token contract
-     * for the receipt token. It custodies the depositTokens until depositLockDuration is complete. After
-     * lockDuration is completed, the depositTokens can be claimed by the original depositors. Adds merkle access pattern
-     * 
-    **/
-    function createStream(
-        address rewardToken,
-        address depositToken,
-        uint32 startTime,
-        uint32 streamDuration,
-        uint32 depositLockDuration,
-        uint32 rewardLockDuration,
-        bool isIndefinite,
-        bytes32 merkleRoot
-    )
-        public
-        returns (Stream)
-    {
-        // perform checks
-
-        {
-            if (startTime < block.timestamp + streamCreationParams.minStartDelay) revert StartTimeError();
-            if (streamDuration < streamCreationParams.minStreamDuration || streamDuration > streamCreationParams.maxStreamDuration) revert StreamDurationError();
-            if (depositLockDuration > streamCreationParams.maxDepositLockDuration || rewardLockDuration > streamCreationParams.maxRewardLockDuration) revert LockDurationError();
-        }
-        
-
-        // TODO: figure out sane salt, i.e. streamid + x? streamid guaranteed to be unique
-        uint64 that_stream = currStreamId;
-        currStreamId += 1;
-        bytes32 salt = bytes32(uint256(that_stream));
-
-        bytes memory bytecode = abi.encodePacked(merkleStreamCreation.creationCode(), abi.encode(
-            that_stream,
-            msg.sender,
-            isIndefinite,
-            rewardToken,
-            depositToken,
-            startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration,
-            feeParams.feePercent,
-            feeParams.feeEnabled
-        ));
-
-        Stream stream;
-        assembly {
-            // Deploy a new contract with our pre-made bytecode via CREATE2.
-            // We start 32 bytes into the code to avoid copying the byte length.
-            stream := create2(0, add(bytecode, 32), mload(bytecode), salt)
-        }
-
-        emit StreamCreated(that_stream, address(stream));
-
-        return stream;
-    }
-
-    function updateStreamParams(GovernableStreamParams memory newParams) public governed {
-        // DATA VALIDATION:
-        //  there is no real concept of "sane" limits here, and if misconfigured its ultimated
-        //  not a massive deal so no data validation is done
-        GovernableStreamParams memory old = streamCreationParams;
-        streamCreationParams = newParams;
-        emit StreamParametersUpdated(old, newParams);
-    }
-
-    function updateFeeParams(GovernableFeeParams memory newFeeParams) public governed {
-        if (newFeeParams.feePercent > MAX_FEE_PERCENT) revert GovParamsError();
-        GovernableFeeParams memory old = feeParams;
-        feeParams = newFeeParams;
-        emit FeeParametersUpdated(old, newFeeParams);
     }
 }

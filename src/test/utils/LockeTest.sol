@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "../../Locke.sol";
+import "../../MerkleLocke.sol";
+import "../../LockeFactory.sol";
 import "../../LockeLens.sol";
 import "solmate/tokens/ERC20.sol";
 import "./TestToken.sol";
@@ -153,6 +155,7 @@ abstract contract BaseTest is DSTestPlus {
     Stream stream;
     Stream fee;
     Stream indefinite;
+    MerkleStream merkle;
 
     uint32 maxDepositLockDuration;
     uint32 maxRewardLockDuration;
@@ -287,6 +290,30 @@ abstract contract BaseTest is DSTestPlus {
             // bytes32(0)
         );
         vm.label(address(stream), "Stream");
+    }
+
+    function merkleStreamSetup(uint256 startTime, bytes32 root) internal returns (MerkleStream merkle) {
+        (
+            uint32 maxDepositLockDuration,
+            uint32 maxRewardLockDuration,
+            uint32 maxStreamDuration,
+            uint32 minStreamDuration,
+            uint32 minStartDelay
+        ) = defaultStreamFactory.streamCreationParams();
+
+        merkle = defaultStreamFactory.createStream(
+            address(testTokenA),
+            address(testTokenB),
+            uint32(startTime), // 10 seconds in future
+            minStreamDuration,
+            maxDepositLockDuration,
+            0,
+            false,
+            root
+            // false,
+            // bytes32(0)
+        );
+        vm.label(address(merkle), "MerkleStream");
     }
 
     function streamSetupIndefinite(uint256 startTime) internal returns (Stream stream) {

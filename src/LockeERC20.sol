@@ -83,7 +83,7 @@ abstract contract LockeERC20 {
         _;
     }
 
-    function approve(address spender, uint256 amount) public virtual returns (bool) {
+    function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
 
         emit Approval(msg.sender, spender, amount);
@@ -91,7 +91,7 @@ abstract contract LockeERC20 {
         return true;
     }
 
-    function transfer(address to, uint256 amount) transferabilityDelay public virtual returns (bool) {
+    function transfer(address to, uint256 amount) transferabilityDelay external returns (bool) {
         balanceOf[msg.sender] -= amount;
 
         // This is safe because the sum of all user
@@ -109,7 +109,7 @@ abstract contract LockeERC20 {
         address from,
         address to,
         uint256 amount
-    ) transferabilityDelay public virtual returns (bool) {
+    ) transferabilityDelay external returns (bool) {
         if (allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] -= amount;
         }
@@ -139,7 +139,7 @@ abstract contract LockeERC20 {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) public virtual {
+    ) external {
         require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
 
         // This is safe because the only math done is incrementing
