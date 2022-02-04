@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "./IReimbursementToken.sol";
 import "./ILockeERC20.sol";
+
 
 interface IStream is ILockeERC20 {
 	    // ======= Events ========
@@ -54,8 +56,8 @@ interface IStream is ILockeERC20 {
 	function isIndefinite() external view returns (bool _isIndefinite);
 	function unstreamed() external view returns (uint112 _unstreamed);
 	function rewardPerToken() external view returns (uint256 _rewardPerToken);
+	function depositToken() external view returns (address);
 	function rewardToken() external view returns (address _rewardToken);
-	function depositToken() external view returns (address _depositToken);
 	function streamCreator() external view returns (address _streamCreator);
 	function streamId() external view returns (uint64 _streamId);
 	function feeParams() external view returns (uint16 _feePercent, bool _feeEnabled);

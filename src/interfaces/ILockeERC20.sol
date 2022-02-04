@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "./IReimbursementToken.sol";
 
-interface ILockeERC20 {
+interface ILockeERC20 is IReimbursementToken {
     event Transfer(address indexed from, address indexed to, uint256 amount);
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
     function name() external view returns (string memory _name);
     function symbol() external view returns (string memory _symbol);
     function decimals() external view returns (uint8 _decimals);
-    function transferStartTime() external view returns (uint32 _transferStartTime);
     function totalSupply() external view returns (uint256 _totalSupply);
     function balanceOf(address who) external view returns (uint256 _balanceOf);
     function allowance(address owner, address spender) external view returns (uint256 _allowance);

@@ -41,6 +41,7 @@ contract TestDeposit is BaseTest {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
 
+        stream.maturity();
         vm.expectRevert(IStream.LockOngoing.selector);
         stream.claimDepositTokens(100);
     }

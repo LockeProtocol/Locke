@@ -29,6 +29,7 @@ contract StreamFactory is IStreamFactory, MinimallyGoverned {
     error StreamDurationError();
     error LockDurationError();
     error GovParamsError();
+    error DeployFailed();
 
     constructor(
         address _governor,
@@ -102,6 +103,7 @@ contract StreamFactory is IStreamFactory, MinimallyGoverned {
             // We start 32 bytes into the code to avoid copying the byte length.
             stream := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
+        if (address(stream) == address(0)) revert DeployFailed();
 
         emit StreamCreated(that_stream, address(stream));
 
@@ -160,6 +162,8 @@ contract StreamFactory is IStreamFactory, MinimallyGoverned {
             // We start 32 bytes into the code to avoid copying the byte length.
             stream := create2(0, add(bytecode, 32), mload(bytecode), sload(currStreamId.slot))
         }
+
+        if (address(stream) == address(0)) revert DeployFailed();
 
 
         emit StreamCreated(currStreamId, address(stream));

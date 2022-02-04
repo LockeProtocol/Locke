@@ -3,10 +3,12 @@ pragma solidity >=0.8.0;
 
 import "solmate/tokens/ERC20.sol";
 import "./interfaces/ILockeERC20.sol";
+import "./SharedState.sol";
 
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
 /// @author Modified from Solmate (https://github.com/Rari-Capital/solmate/blob/master/src/tokens/ERC20.sol)
-abstract contract LockeERC20 is ILockeERC20 {
+abstract contract LockeERC20 is SharedState, ILockeERC20 {
+    error NotTransferableYet();
     /*///////////////////////////////////////////////////////////////
                              METADATA STORAGE
     //////////////////////////////////////////////////////////////*/
@@ -17,7 +19,8 @@ abstract contract LockeERC20 is ILockeERC20 {
 
     uint8 public override immutable decimals;
 
-    uint32 public override immutable transferStartTime;
+    uint32 private immutable endDepositLock;
+    uint32 private immutable endStream;
 
     /*///////////////////////////////////////////////////////////////
                               ERC20 STORAGE
@@ -49,10 +52,14 @@ abstract contract LockeERC20 is ILockeERC20 {
     constructor(
         address depositToken,
         uint256 streamId,
-        uint32 endStream,
-        uint32 endDepositLock,
+        uint32 _endDepositLock,
+        uint32 _endStream,
         bool isIndefinite
-    ) {
+    )
+        SharedState(depositToken, _endDepositLock, _endStream)
+    {
+        endDepositLock = _endDepositLock;
+        endStream = _endStream;
 
         if (!isIndefinite) {
             // locke + depositTokenName + streamId = lockeUSD Coin-1
@@ -87,8 +94,6 @@ abstract contract LockeERC20 is ILockeERC20 {
         }
 
         decimals = 18;
-
-        transferStartTime = endStream;
 
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
@@ -138,7 +143,7 @@ abstract contract LockeERC20 is ILockeERC20 {
 
     modifier transferabilityDelay {
         // ensure the time is after start time
-        require(block.timestamp >= transferStartTime, "stream");
+        if (block.timestamp < endStream) revert NotTransferableYet();
         _;
     }
 

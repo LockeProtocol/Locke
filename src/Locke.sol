@@ -3,6 +3,7 @@ pragma solidity 0.8.11;
 
 import "./Gov.sol";
 import "./LockeERC20.sol";
+import "./SharedState.sol";
 
 import "./interfaces/ILockeCallee.sol";
 import "./interfaces/IStream.sol";
@@ -12,7 +13,7 @@ import "solmate/tokens/ERC20.sol";
 
 
 // ====== Stream =====
-contract Stream is IStream, LockeERC20, MinimallyExternallyGoverned {
+contract Stream is LockeERC20, MinimallyExternallyGoverned, IStream {
     using SafeTransferLib for ERC20;    
     // ======= Structs ========
     struct TokenStream {
@@ -33,8 +34,10 @@ contract Stream is IStream, LockeERC20, MinimallyExternallyGoverned {
 
     // end of stream
     uint32 private immutable endStream;
+
     // end of deposit lock
     uint32 private immutable endDepositLock;
+
     // end of reward lock
     uint32 private immutable endRewardLock;
 
@@ -218,8 +221,8 @@ contract Stream is IStream, LockeERC20, MinimallyExternallyGoverned {
         LockeERC20(
             _depositToken,
             _streamId,
-            _startTime + _streamDuration,
             _startTime + _streamDuration + _depositLockDuration,
+            _startTime + _streamDuration,
             _isIndefinite
         )
         MinimallyExternallyGoverned(msg.sender) // inherit factory governance 
@@ -236,8 +239,11 @@ contract Stream is IStream, LockeERC20, MinimallyExternallyGoverned {
         // store streamParams
         startTime = _startTime;
         streamDuration = _streamDuration;
+
+        // set in shared state
         endStream = startTime + streamDuration;
         endDepositLock = endStream + _depositLockDuration;
+        
         endRewardLock = startTime + _rewardLockDuration;
     
         // set tokens
