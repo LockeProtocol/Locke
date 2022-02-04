@@ -1,6 +1,6 @@
 Business Source License 1.1
 
-This license applies exclusively to Locke.sol. All other files and libraries are either MIT, GPL, or inherit the necessary license.
+This license applies exclusively to Locke.sol, LockeFactory.sol, and MerkleLocke.sol. All other files and libraries are either MIT, GPL, or inherit the necessary license.
 
 License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
 "Business Source License" is a trademark of MariaDB Corporation Ab.
@@ -9,18 +9,18 @@ License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
 
 Parameters
 
-Licensor:             _ Protocol DAO
+Licensor:             Brock Elmore, Will Price
 
-Licensed Work:        _ Protocol
-                      The Licensed Work is (c) 2021 _ Protocol DAO
+Licensed Work:        Locke Protocol
+                      The Licensed Work is (c) 2022 Brock Elmore, Will Price
 
 Additional Use Grant: Any uses listed and defined at
-                      _.eth
+                      lockeprotocol.eth
 
-Change Date:          The earlier of 2024-04-01 or a date specified at
-                      _.eth
+Change Date:          The earlier of 2023-03-01 or a date specified at
+                      lockeprotocol.eth
 
-Change License:       GNU General Public License v2.0 or later
+Change License:       GNU General Public License v3.0 or later
 
 -----------------------------------------------------------------------------
 

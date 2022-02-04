@@ -1,5 +1,9 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
+
+import "../../interfaces/IStreamFactory.sol";
+import "../../interfaces/IStream.sol";
+import "../../interfaces/IMerkleStream.sol";
 
 import "../../Locke.sol";
 import "../../MerkleLocke.sol";
@@ -151,11 +155,11 @@ abstract contract BaseTest is DSTestPlus {
 
     bool enteredFlashloan = false;
 
-    StreamFactory defaultStreamFactory;
-    Stream stream;
-    Stream fee;
-    Stream indefinite;
-    MerkleStream merkle;
+    IStreamFactory defaultStreamFactory;
+    IStream stream;
+    IStream fee;
+    IStream indefinite;
+    IMerkleStream merkle;
 
     uint32 maxDepositLockDuration;
     uint32 maxRewardLockDuration;
@@ -211,7 +215,7 @@ abstract contract BaseTest is DSTestPlus {
             .checked_write(amt);
     }
 
-    function createDefaultStream() public returns (Stream) {
+    function createDefaultStream() public returns (IStream) {
         return defaultStreamFactory.createStream(
             address(testTokenA),
             address(testTokenB),
@@ -267,7 +271,7 @@ abstract contract BaseTest is DSTestPlus {
         vm.label(address(lens), "Lens");
     }
 
-    function streamSetup(uint256 startTime) internal returns (Stream stream) {
+    function streamSetup(uint256 startTime) internal returns (IStream stream) {
         (
             uint32 maxDepositLockDuration,
             uint32 maxRewardLockDuration,
@@ -290,7 +294,7 @@ abstract contract BaseTest is DSTestPlus {
         vm.label(address(stream), "Stream");
     }
 
-    function merkleStreamSetup(uint256 startTime, bytes32 root) internal returns (MerkleStream merkle) {
+    function merkleStreamSetup(uint256 startTime, bytes32 root) internal returns (IMerkleStream merkle) {
         (
             uint32 maxDepositLockDuration,
             uint32 maxRewardLockDuration,
@@ -314,7 +318,7 @@ abstract contract BaseTest is DSTestPlus {
         vm.label(address(merkle), "MerkleStream");
     }
 
-    function streamSetupIndefinite(uint256 startTime) internal returns (Stream stream) {
+    function streamSetupIndefinite(uint256 startTime) internal returns (IStream stream) {
         (
             uint32 maxDepositLockDuration,
             uint32 maxRewardLockDuration,

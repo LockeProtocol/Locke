@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
@@ -42,7 +43,7 @@ contract TestCreatorClaimTokens is BaseTest {
         vm.warp(endDepositLock + 1);
         indefinite.creatorClaim(address(this));
 
-        vm.expectRevert(Stream.BalanceError.selector);
+        vm.expectRevert(IStream.BalanceError.selector);
         indefinite.creatorClaim(address(this));
     }
 
@@ -52,7 +53,7 @@ contract TestCreatorClaimTokens is BaseTest {
 
         vm.warp(endDepositLock + 1);
 
-        vm.expectRevert(Stream.NotCreator.selector);
+        vm.expectRevert(IStream.NotCreator.selector);
         vm.prank(alice);
         indefinite.creatorClaim(address(this));
     }
@@ -61,7 +62,7 @@ contract TestCreatorClaimTokens is BaseTest {
         testTokenB.approve(address(indefinite), 100);
         indefinite.stake(100);
 
-        vm.expectRevert(Stream.StreamOngoing.selector);
+        vm.expectRevert(IStream.StreamOngoing.selector);
         indefinite.creatorClaim(address(this));
     }
 

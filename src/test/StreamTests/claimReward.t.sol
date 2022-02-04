@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
@@ -20,7 +21,7 @@ contract TestClaimReward is BaseTest {
     }
 
     function test_claimRewardLockRevert() public {
-        vm.expectRevert(Stream.LockOngoing.selector);
+        vm.expectRevert(IStream.LockOngoing.selector);
         stream.claimReward();
     }
 
@@ -211,7 +212,7 @@ contract TestClaimReward is BaseTest {
             assertEq(testTokenA.balanceOf(address(this)), 1<<128);
         }
 
-        vm.expectRevert(Stream.ZeroAmount.selector);
+        vm.expectRevert(IStream.ZeroAmount.selector);
         stream.claimReward();
     }
 }

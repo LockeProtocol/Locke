@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
@@ -24,7 +25,7 @@ contract TestDeposit is BaseTest {
         testTokenB.approve(address(indefinite), 100);
         indefinite.stake(100);
         vm.warp(endDepositLock);
-        vm.expectRevert(Stream.StreamTypeError.selector);
+        vm.expectRevert(IStream.StreamTypeError.selector);
         indefinite.claimDepositTokens(100);
     }
 
@@ -32,7 +33,7 @@ contract TestDeposit is BaseTest {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
         vm.warp(endDepositLock);
-        vm.expectRevert(Stream.ZeroAmount.selector);
+        vm.expectRevert(IStream.ZeroAmount.selector);
         stream.claimDepositTokens(0);
     }
 
@@ -40,7 +41,7 @@ contract TestDeposit is BaseTest {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
 
-        vm.expectRevert(Stream.LockOngoing.selector);
+        vm.expectRevert(IStream.LockOngoing.selector);
         stream.claimDepositTokens(100);
     }
 
@@ -55,7 +56,7 @@ contract TestDeposit is BaseTest {
 
         stream.claimDepositTokens(100);
         
-        LockeERC20 asLERC = LockeERC20(stream);
+        ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 5);
 
         uint256 redeemed = uint256(vm.load(address(stream), bytes32(uint256(10)))) >> 112;

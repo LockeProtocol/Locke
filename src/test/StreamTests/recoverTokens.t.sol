@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
@@ -22,7 +23,7 @@ contract TestRecovery is BaseTest {
 
     function test_recoverRevertRewardTime() public {
         testTokenA.transfer(address(stream), 100);
-        vm.expectRevert(Stream.StreamOngoing.selector);
+        vm.expectRevert(IStream.StreamOngoing.selector);
         stream.recoverTokens(address(testTokenA), address(this));
     }
 

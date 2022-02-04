@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
@@ -12,7 +13,7 @@ contract TestFlashloan is BaseTest {
     }
 
     function test_flashloanTokenRevert() public {
-        vm.expectRevert(Stream.BadERC20Interaction.selector);
+        vm.expectRevert(IStream.BadERC20Interaction.selector);
         stream.flashloan(address(123), address(0), 100, "");
     }
 
@@ -21,7 +22,7 @@ contract TestFlashloan is BaseTest {
         stream.stake(1337);
 
         uint256 currBal = testTokenB.balanceOf(address(this));
-        vm.expectRevert(Stream.BalanceError.selector);
+        vm.expectRevert(IStream.BalanceError.selector);
         stream.flashloan(address(testTokenB), address(this), 1337, abi.encode(false, currBal));
     }
 

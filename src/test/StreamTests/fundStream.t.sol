@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
+import "../../interfaces/IStreamFactory.sol";
 
 contract TestFundStream is BaseTest {
     function setUp() public {
@@ -8,7 +10,7 @@ contract TestFundStream is BaseTest {
 
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-        defaultStreamFactory.updateFeeParams(StreamFactory.GovernableFeeParams({
+        defaultStreamFactory.updateFeeParams(IStreamFactory.GovernableFeeParams({
             feePercent: 100,
             feeEnabled: true
         }));
@@ -17,13 +19,13 @@ contract TestFundStream is BaseTest {
     }
 
     function test_fundStreamZeroAmt() public {
-        vm.expectRevert(Stream.ZeroAmount.selector);
+        vm.expectRevert(IStream.ZeroAmount.selector);
         stream.fundStream(0);
     }
 
     function test_fundStreamFundAfterStart() public {
         vm.warp(block.timestamp + minStartDelay + minStreamDuration);
-        vm.expectRevert(Stream.NotBeforeStream.selector);
+        vm.expectRevert(IStream.NotBeforeStream.selector);
         stream.fundStream(100);
     }
 

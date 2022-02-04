@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
+import "../../interfaces/ILockeERC20.sol";
 
 contract TestExit is BaseTest {
     function setUp() public {
@@ -21,7 +23,7 @@ contract TestExit is BaseTest {
 
     function test_exitZeroRevert() public {
         testTokenB.approve(address(stream), 100);
-        vm.expectRevert(Stream.ZeroAmount.selector);
+        vm.expectRevert(IStream.ZeroAmount.selector);
         stream.exit();
     }
 
@@ -31,7 +33,7 @@ contract TestExit is BaseTest {
 
         stream.exit();
 
-        LockeERC20 asLERC = LockeERC20(stream);
+        ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 0);
         (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 0);
@@ -69,7 +71,7 @@ contract TestExit is BaseTest {
 
         stream.exit();
 
-        LockeERC20 asLERC = LockeERC20(stream);
+        ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 50);
         (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 50);
@@ -106,7 +108,7 @@ contract TestExit is BaseTest {
 
         indefinite.exit();
 
-        LockeERC20 asLERC = LockeERC20(indefinite);
+        ILockeERC20 asLERC = ILockeERC20(indefinite);
         assertEq(asLERC.balanceOf(address(this)), 0);
         (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = indefinite.tokenAmounts();
         assertEq(depositTokenAmount, 50);

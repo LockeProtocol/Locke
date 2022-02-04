@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
@@ -12,12 +13,12 @@ contract TestIncentive is BaseTest {
     }
 
     function test_createIncentiveWithZeroAmt() public {
-        vm.expectRevert(Stream.ZeroAmount.selector);
+        vm.expectRevert(IStream.ZeroAmount.selector);
         stream.createIncentive(address(testTokenC), 0);
     }
 
     function test_createIncentiveWithToken() public {
-        vm.expectRevert(Stream.BadERC20Interaction.selector);
+        vm.expectRevert(IStream.BadERC20Interaction.selector);
         stream.createIncentive(address(testTokenA), 0);
     }
 
@@ -35,7 +36,7 @@ contract TestIncentive is BaseTest {
         stream.createIncentive(address(testTokenC), 100);
 
         vm.prank(alice);
-        vm.expectRevert(Stream.NotCreator.selector);
+        vm.expectRevert(IStream.NotCreator.selector);
         stream.claimIncentive(address(testTokenC));
     }
 
@@ -43,13 +44,13 @@ contract TestIncentive is BaseTest {
         testTokenC.approve(address(stream), 100);
         stream.createIncentive(address(testTokenC), 100);
 
-        vm.expectRevert(Stream.StreamOngoing.selector);
+        vm.expectRevert(IStream.StreamOngoing.selector);
         stream.claimIncentive(address(testTokenC));
     }
 
     function test_claimIncentiveAmt() public {
         vm.warp(block.timestamp + minStartDelay + minStreamDuration);
-        vm.expectRevert(Stream.ZeroAmount.selector);
+        vm.expectRevert(IStream.ZeroAmount.selector);
         stream.claimIncentive(address(testTokenC));
     }
 

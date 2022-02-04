@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
+import "../../interfaces/IStreamFactory.sol";
 
 contract TestFees is BaseTest {
     function setUp() public {
@@ -8,7 +10,7 @@ contract TestFees is BaseTest {
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-        defaultStreamFactory.updateFeeParams(StreamFactory.GovernableFeeParams({
+        defaultStreamFactory.updateFeeParams(IStreamFactory.GovernableFeeParams({
             feePercent: 100,
             feeEnabled: true
         }));
@@ -27,7 +29,7 @@ contract TestFees is BaseTest {
     }
 
     function test_claimFeesStreamRevert() public {
-        vm.expectRevert(Stream.StreamOngoing.selector);
+        vm.expectRevert(IStream.StreamOngoing.selector);
         stream.claimFees(address(this));
     }
 

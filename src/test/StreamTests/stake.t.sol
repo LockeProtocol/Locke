@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
+import "../../interfaces/ILockeERC20.sol";
 
 contract TestStake is BaseTest {
     function setUp() public {
@@ -125,13 +127,13 @@ contract TestStake is BaseTest {
     }
 
     function test_stakeAmtRevert() public {
-        vm.expectRevert(Stream.ZeroAmount.selector);
+        vm.expectRevert(IStream.ZeroAmount.selector);
         stream.stake(0);
     }
 
     function test_stakeTimeRevert() public {
         vm.warp(endStream);
-        vm.expectRevert(Stream.NotStream.selector);
+        vm.expectRevert(IStream.NotStream.selector);
         stream.stake(100);
     }
 
@@ -140,7 +142,7 @@ contract TestStake is BaseTest {
         writeBalanceOf(address(stream), address(testTokenB), 2**112 + 1);
         
         testTokenB.approve(address(stream), 100);
-        vm.expectRevert(Stream.BadERC20Interaction.selector);
+        vm.expectRevert(IStream.BadERC20Interaction.selector);
         stream.stake(100);
     }
 
@@ -148,7 +150,7 @@ contract TestStake is BaseTest {
         testTokenB.approve(address(stream), 102);
 
         stream.stake(100);
-                LockeERC20 asLERC = LockeERC20(stream);
+        ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 100);
         (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 100);
@@ -237,7 +239,7 @@ contract TestStake is BaseTest {
         testTokenB.approve(address(indefinite), type(uint256).max);
 
         indefinite.stake(100);
-                LockeERC20 asLERC = LockeERC20(indefinite);
+        ILockeERC20 asLERC = ILockeERC20(indefinite);
         // no tokens wen indefinite
         assertEq(asLERC.balanceOf(address(this)), 0);
 

@@ -1,78 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.11;
 
+import "./Gov.sol";
 import "./LockeERC20.sol";
+
+import "./interfaces/ILockeCallee.sol";
+import "./interfaces/IStream.sol";
+
 import "solmate/utils/SafeTransferLib.sol";
 import "solmate/tokens/ERC20.sol";
 
-// ====== Governance =====
-contract MinimallyGoverned {
-    address public gov;
-    address public pendingGov;
-
-    error NotPending();
-    error NotGov();
-
-    event NewGov(address indexed oldGov, address indexed newGov);
-    event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
-
-    constructor(address _governor) {
-        gov = _governor;
-    }
-
-    /// Update pending governor
-    function setPendingGov(address newPendingGov) governed external {
-        address old = pendingGov;
-        pendingGov = newPendingGov;
-        emit NewPendingGov(old, newPendingGov);
-    }
-
-    /// Accepts governorship
-    function acceptGov() external {
-        if (pendingGov != msg.sender) revert NotPending();
-        address old = gov;
-        gov = pendingGov;
-        emit NewGov(old, pendingGov);
-    }
-
-    /// Remove governor
-    function __abdicate() governed external {
-        address old = gov;
-        gov = address(0);
-        emit NewGov(old, address(0));
-    }
-
-    // ====== Modifiers =======
-    /// Governed function
-    modifier governed {
-        if (msg.sender != gov) revert NotGov();
-        _;
-    }
-}
-
-abstract contract MinimallyExternallyGoverned {
-    MinimallyGoverned immutable gov;
-
-    error NotGov();
-
-    constructor(address governor) {
-        gov = MinimallyGoverned(governor);
-    }
-
-    // ====== Modifiers =======
-    /// Governed function
-    modifier externallyGoverned {
-        if (msg.sender != gov.gov()) revert NotGov();
-        _;
-    }
-}
-
-interface LockeCallee {
-    function lockeCall(address initiator, address token, uint256 amount, bytes calldata data) external;
-}
 
 // ====== Stream =====
-contract Stream is LockeERC20, MinimallyExternallyGoverned {
+contract Stream is IStream, LockeERC20, MinimallyExternallyGoverned {
     using SafeTransferLib for ERC20;    
     // ======= Structs ========
     struct TokenStream {
@@ -99,12 +39,12 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     uint32 private immutable endRewardLock;
 
     // Token given to depositer
-    address public immutable rewardToken;
+    address public override immutable rewardToken;
     // Token deposited
-    address public immutable depositToken;
+    address public override immutable depositToken;
 
     // This stream's id
-    uint64 public immutable streamId;
+    uint64 public override immutable streamId;
 
     // fee percent on reward tokens
     uint16 private immutable feePercent;
@@ -112,10 +52,10 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     bool private immutable feeEnabled;
 
     // deposits are not ever reclaimable by depositors
-    bool public immutable isIndefinite;
+    bool public override immutable isIndefinite;
 
     // stream creator
-    address public immutable streamCreator;
+    address public override immutable streamCreator;
 
     uint112 private immutable depositDecimalsOne;
     // ============
@@ -149,12 +89,12 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
 
     // == slot f ==
     uint112 private redeemedRewardTokens;
-    uint32 public lastUpdate;
+    uint32 public override lastUpdate;
     uint32 private unaccruedSeconds;
     // ============
 
     // mapping of address to number of tokens not yet streamed over
-    mapping (address => TokenStream) public tokenStreamForAccount;
+    mapping (address => TokenStream) public override tokenStreamForAccount;
 
     struct Incentive {
         uint112 amt;
@@ -162,32 +102,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     }
 
     // external incentives to stream creator
-    mapping (address => Incentive) public incentives;
-
-    // ======= Events ========
-    event StreamFunded(uint256 amount);
-    event Staked(address indexed who, uint256 amount);
-    event Withdrawn(address indexed who, uint256 amount);
-    event StreamIncentivized(address indexed token, uint256 amount);
-    event StreamIncentiveClaimed(address indexed token, uint256 amount);
-    event TokensClaimed(address indexed who, uint256 amount);
-    event DepositTokensReclaimed(address indexed who, uint256 amount);
-    event FeesClaimed(address indexed token, address indexed who, uint256 amount);
-    event RecoveredTokens(address indexed token, address indexed recipient, uint256 amount);
-    event RewardsClaimed(address indexed who, uint256 amount);
-    event Flashloaned(address indexed token, address indexed who, uint256 amount, uint256 fee);
-
-    // =======   Errors  ========
-    error NotStream();
-    error ZeroAmount();
-    error BalanceError();
-    error Reentrant();
-    error NotBeforeStream();
-    error BadERC20Interaction();
-    error NotCreator();
-    error StreamOngoing();
-    error StreamTypeError();
-    error LockOngoing();
+    mapping (address => Incentive) public override incentives;
 
     // ======= Modifiers ========
     modifier updateStream() {
@@ -332,21 +247,21 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     /**
      * @dev Returns relevant internal token amounts
     **/
-    function tokenAmounts() external view returns (uint112, uint112, uint112, uint112) {
+    function tokenAmounts() external override view returns (uint112, uint112, uint112, uint112) {
         return (rewardTokenAmount, depositTokenAmount, rewardTokenFeeAmount, depositTokenFlashloanFeeAmount);
     }
 
     /**
      * @dev Returns fee parameters
     **/
-    function feeParams() external view returns (uint16, bool) {
+    function feeParams() external override view returns (uint16, bool) {
         return (feePercent, feeEnabled);
     }
 
     /**
      * @dev Returns stream parameters
     **/
-    function streamParams() external view returns (uint32,uint32,uint32,uint32) {
+    function streamParams() external override view returns (uint32,uint32,uint32,uint32) {
         return (
             startTime,
             endStream,
@@ -367,7 +282,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         }
     }
 
-    function rewardPerToken() public view returns (uint256) {
+    function rewardPerToken() public override view returns (uint256) {
         if (totalVirtualBalance == 0) {
             return cumulativeRewardPerToken;
         } else {
@@ -401,7 +316,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         return amount < diluted ? diluted : amount;
     }
 
-    function getEarned(address who) external view returns (uint256) {
+    function getEarned(address who) external override view returns (uint256) {
         TokenStream storage ts = tokenStreamForAccount[who];
         return earned(ts, rewardPerToken());
     }
@@ -421,7 +336,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     /**
      * @dev Allows _anyone_ to fund this stream, if its before the stream start time
     **/
-    function fundStream(uint112 amount) external lock {
+    function fundStream(uint112 amount) external override lock {
         if (amount == 0) revert ZeroAmount();
         if (block.timestamp >= startTime) revert NotBeforeStream();
 
@@ -470,7 +385,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      * 
      *  additionally, updates tokenStreamForAccount
     */ 
-    function stake(uint112 amount) external virtual lock updateStream {
+    function stake(uint112 amount) external virtual override lock updateStream {
         _stake(amount);
     }
 
@@ -518,7 +433,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      * 
      *  additionally, updates tokenStreamForAccount
     */ 
-    function withdraw(uint112 amount) external lock updateStream {
+    function withdraw(uint112 amount) external override lock updateStream {
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
         if (ts.tokens < amount) revert BalanceError();
         _withdraw(amount, ts);
@@ -574,7 +489,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      * 
      *  additionally, updates tokenStreamForAccount
     */ 
-    function exit() external lock updateStream {
+    function exit() external override lock updateStream {
         // checked in updateStream
         // is the stream still going on? thats the only time a depositer can withdraw
         // require(block.timestamp < endStream, "withdraw:!stream");
@@ -587,7 +502,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      *  @dev Allows anyone to incentivize this stream with extra tokens
      *  and requires the incentive to not be the reward or deposit token
     */ 
-    function createIncentive(address token, uint112 amount) external lock {
+    function createIncentive(address token, uint112 amount) external override lock {
         if (token == rewardToken || token == depositToken) revert BadERC20Interaction();
         if (amount == 0) revert ZeroAmount();
         
@@ -606,7 +521,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     /**
      *  @dev Allows the stream creator to claim an incentive once the stream is done
     */ 
-    function claimIncentive(address token) external lock {
+    function claimIncentive(address token) external override lock {
         // creator is claiming
         if (msg.sender != streamCreator) revert NotCreator();
         // stream ended
@@ -623,7 +538,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      *  @dev Allows a receipt token holder to reclaim deposit tokens if the deposit lock is done & their receiptToken amount
      *  is greater than the requested amount
     */ 
-    function claimDepositTokens(uint112 amount) external lock {
+    function claimDepositTokens(uint112 amount) external override lock {
         if (isIndefinite) revert StreamTypeError();
         // NOTE: given that endDepositLock is strictly *after* the last time withdraw or exit is callable
         // we dont need to updateStream(msg.sender)
@@ -646,10 +561,8 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     /**
      *  @dev Allows an original depositor to claim their rewardTokens
     */ 
-    function claimReward() external lock {
+    function claimReward() external override lock {
         if (block.timestamp < endRewardLock) revert LockOngoing();
-        
-        emit StreamFunded(totalVirtualBalance);
 
         uint112 rewardAmt;
         if (block.timestamp < endStream) {
@@ -693,7 +606,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     /**
      *  @dev Allows a creator to claim tokens if the stream has ended & this contract is indefinite
     */ 
-    function creatorClaim(address destination) external lock {
+    function creatorClaim(address destination) external override lock {
         // only can claim once
         if (claimedDepositTokens) revert BalanceError();
         // creator is claiming
@@ -711,9 +624,6 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         uint256 actualStreamedTime = uint256(streamDuration - unaccruedSeconds);
         uint256 actualRewards = actualStreamedTime * rewardTokenAmount / streamDuration;
         uint256 totalRewardTokenNotGiven = rewardTokenAmount - actualRewards;
-        emit StreamFunded(unaccruedSeconds);
-        emit StreamFunded(actualRewards);
-        emit StreamFunded(rewardTokenAmount);
         if (totalRewardTokenNotGiven > 0) {
             ERC20(rewardToken).safeTransfer(streamCreator, totalRewardTokenNotGiven);
         }
@@ -735,7 +645,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      *  @dev Allows the governance contract of the factory to select a destination
      *  and transfer fees (in rewardTokens) to that address totaling the total fee amount
     */ 
-    function claimFees(address destination) external lock externallyGoverned {
+    function claimFees(address destination) external override lock externallyGoverned {
         // Stream is done
         if (block.timestamp < endStream) revert StreamOngoing();
 
@@ -775,7 +685,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      *      3. if incentivized:
      *          - excesss defined as bal - incentives[token]
     */ 
-    function recoverTokens(address token, address recipient) external lock {
+    function recoverTokens(address token, address recipient) external override lock {
         // NOTE: it is the stream creators responsibility to save
         // tokens on behalf of their users.
         if (msg.sender != streamCreator) revert NotCreator();
@@ -825,7 +735,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     /**
      *  @dev Allows anyone to flashloan reward or deposit token for a 10bps fee
     */
-    function flashloan(address token, address to, uint112 amount, bytes calldata data) external lock {
+    function flashloan(address token, address to, uint112 amount, bytes calldata data) external override lock {
         if (token != depositToken && token != rewardToken) revert BadERC20Interaction();
 
         uint256 preTokenBalance = ERC20(token).balanceOf(address(this));
@@ -834,7 +744,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
 
         // the `to` contract should have a public function with the signature:
         // function lockeCall(address initiator, address token, uint256 amount, bytes memory data);
-        LockeCallee(to).lockeCall(msg.sender, token, amount, data);
+        ILockeCallee(to).lockeCall(msg.sender, token, amount, data);
 
         uint256 postTokenBalance = ERC20(token).balanceOf(address(this));
 
@@ -857,7 +767,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
      * 
      *  The primary usecase is for claiming potentially airdrops that may have accrued on behalf of this contract
     */
-    function arbitraryCall(address who, bytes calldata data) external lock externallyGoverned {
+    function arbitraryCall(address who, bytes calldata data) external override lock externallyGoverned {
         if (block.timestamp <= endStream + 30 days) {
             // cannot have had an active incentive for the callee
             // before the creator has had *ample* time to claim

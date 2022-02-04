@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.11;
 
-import "./Locke.sol";
+import "./interfaces/IStream.sol";
 
 contract LockeLens {
     /**
      * @dev Gets the current deposit tokens for a user that haven't been streamed over 
      **/
-	function currDepositTokensNotYetStreamed(Stream stream, address who) external view returns (uint256) {
+	function currDepositTokensNotYetStreamed(IStream stream, address who) external view returns (uint256) {
         unchecked {
             uint32 timestamp = uint32(block.timestamp);
             (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
@@ -41,7 +41,7 @@ contract LockeLens {
     /**
      * @dev Gets a stream's remaining reward tokens that haven't been allocated
      **/
-    function rewardsRemainingToAllocate(Stream stream) external view returns (uint256) {
+    function rewardsRemainingToAllocate(IStream stream) external view returns (uint256) {
         uint32 timestamp = uint32(block.timestamp);
         (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
         uint32 streamDuration = endStream - startTime;
@@ -61,7 +61,7 @@ contract LockeLens {
     /**
      * @dev Gets the current unstreamed deposit tokens for a stream
      **/
-    function currUnstreamed(Stream stream) external view returns (uint256) {
+    function currUnstreamed(IStream stream) external view returns (uint256) {
         uint32 timestamp = uint32(block.timestamp);
         (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
         uint32 streamDuration = endStream - startTime;

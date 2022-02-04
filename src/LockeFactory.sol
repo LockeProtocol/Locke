@@ -1,46 +1,28 @@
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.11;
 
 import "./Locke.sol";
 import "./MerkleLocke.sol";
+import "./interfaces/IStreamFactory.sol";
 
 // Bytecode size hack - allows StreamFactory to be larger than 24kb - size(type(Stream).creationCode)
-contract StreamCreation {
-    bytes public constant creationCode = type(Stream).creationCode;
+contract StreamCreation is IStreamCreation {
+    bytes public override constant creationCode = type(Stream).creationCode;
 }
 
-contract MerkleStreamCreation {
-    bytes public constant creationCode = type(MerkleStream).creationCode;
+contract MerkleStreamCreation is IMerkleStreamCreation {
+    bytes public override constant creationCode = type(MerkleStream).creationCode;
 }
 
-contract StreamFactory is MinimallyGoverned {
-
-    // ======= Structs ========
-    struct GovernableStreamParams {
-        uint32 maxDepositLockDuration;
-        uint32 maxRewardLockDuration;
-        uint32 maxStreamDuration;
-        uint32 minStreamDuration;
-        uint32 minStartDelay;
-    }
-
-    struct GovernableFeeParams {
-        uint16 feePercent;
-        bool feeEnabled;
-    }
-
+contract StreamFactory is IStreamFactory, MinimallyGoverned {
     // ======= Storage ========
-    GovernableStreamParams public streamCreationParams;
-    GovernableFeeParams public feeParams;
-    uint64 public currStreamId; 
+    GovernableStreamParams public override streamCreationParams;
+    GovernableFeeParams public override feeParams;
+    uint64 public override currStreamId; 
     
-    StreamCreation public immutable streamCreation;
-    MerkleStreamCreation public immutable merkleStreamCreation;
+    IStreamCreation public override immutable streamCreation;
+    IMerkleStreamCreation public override immutable merkleStreamCreation;
     uint16 constant MAX_FEE_PERCENT = 500; // 500/10000 == 5%
-
-    // =======  Events  =======
-    event StreamCreated(uint256 indexed stream_id, address stream_addr);
-    event StreamParametersUpdated(GovernableStreamParams oldParams, GovernableStreamParams newParams);
-    event FeeParametersUpdated(GovernableFeeParams oldParams, GovernableFeeParams newParams);
 
     // ======= Errors =========
     error StartTimeError();
@@ -53,8 +35,7 @@ contract StreamFactory is MinimallyGoverned {
         address _emergency_governor,
         StreamCreation _streamCreation,
         MerkleStreamCreation _merkleStreamCreation
-    )
-        public 
+    ) 
         MinimallyGoverned(_governor)
     {
         streamCreation = _streamCreation;
@@ -84,7 +65,8 @@ contract StreamFactory is MinimallyGoverned {
         bool isIndefinite
     )
         external
-        returns (Stream)
+        override
+        returns (IStream)
     {
         // perform checks
 
@@ -114,7 +96,7 @@ contract StreamFactory is MinimallyGoverned {
             feeParams.feeEnabled
         ));
 
-        Stream stream;
+        IStream stream;
         assembly {
             // Deploy a new contract with our pre-made bytecode via CREATE2.
             // We start 32 bytes into the code to avoid copying the byte length.
@@ -143,7 +125,8 @@ contract StreamFactory is MinimallyGoverned {
         bytes32 merkleRoot
     )
         external
-        returns (MerkleStream)
+        override
+        returns (IMerkleStream)
     {
         // perform checks
 
@@ -171,7 +154,7 @@ contract StreamFactory is MinimallyGoverned {
             ));
         }
 
-        MerkleStream stream;
+        IMerkleStream stream;
         assembly {
             // Deploy a new contract with our pre-made bytecode via CREATE2.
             // We start 32 bytes into the code to avoid copying the byte length.
@@ -184,7 +167,7 @@ contract StreamFactory is MinimallyGoverned {
         return stream;
     }
 
-    function updateStreamParams(GovernableStreamParams memory newParams) external governed {
+    function updateStreamParams(GovernableStreamParams memory newParams) external override governed {
         // DATA VALIDATION:
         //  there is no real concept of "sane" limits here, and if misconfigured its ultimated
         //  not a massive deal so no data validation is done
@@ -193,7 +176,7 @@ contract StreamFactory is MinimallyGoverned {
         emit StreamParametersUpdated(old, newParams);
     }
 
-    function updateFeeParams(GovernableFeeParams memory newFeeParams) external governed {
+    function updateFeeParams(GovernableFeeParams memory newFeeParams) external override governed {
         if (newFeeParams.feePercent > MAX_FEE_PERCENT) revert GovParamsError();
         GovernableFeeParams memory old = feeParams;
         feeParams = newFeeParams;

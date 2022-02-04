@@ -2,52 +2,45 @@
 pragma solidity >=0.8.0;
 
 import "solmate/tokens/ERC20.sol";
+import "./interfaces/ILockeERC20.sol";
 
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
 /// @author Modified from Solmate (https://github.com/Rari-Capital/solmate/blob/master/src/tokens/ERC20.sol)
-abstract contract LockeERC20 {
-    /*///////////////////////////////////////////////////////////////
-                                  EVENTS
-    //////////////////////////////////////////////////////////////*/
-
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-
+abstract contract LockeERC20 is ILockeERC20 {
     /*///////////////////////////////////////////////////////////////
                              METADATA STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    string public name;
+    string public override name;
 
-    string public symbol;
+    string public override symbol;
 
-    uint8 public immutable decimals;
+    uint8 public override immutable decimals;
 
-    uint32 public immutable transferStartTime;
+    uint32 public override immutable transferStartTime;
 
     /*///////////////////////////////////////////////////////////////
                               ERC20 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    uint256 public totalSupply;
+    uint256 public override totalSupply;
 
-    mapping(address => uint256) public balanceOf;
+    mapping(address => uint256) public override balanceOf;
 
-    mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => mapping(address => uint256)) public override allowance;
 
     /*///////////////////////////////////////////////////////////////
                            EIP-2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant PERMIT_TYPEHASH =
+    bytes32 public override constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
     uint256 internal immutable INITIAL_CHAIN_ID;
 
     bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
 
-    mapping(address => uint256) public nonces;
+    mapping(address => uint256) public override nonces;
 
     /*///////////////////////////////////////////////////////////////
                                CONSTRUCTOR
@@ -83,7 +76,7 @@ abstract contract LockeERC20 {
         _;
     }
 
-    function approve(address spender, uint256 amount) external returns (bool) {
+    function approve(address spender, uint256 amount) external override returns (bool) {
         allowance[msg.sender][spender] = amount;
 
         emit Approval(msg.sender, spender, amount);
@@ -91,7 +84,7 @@ abstract contract LockeERC20 {
         return true;
     }
 
-    function transfer(address to, uint256 amount) transferabilityDelay external returns (bool) {
+    function transfer(address to, uint256 amount) transferabilityDelay external override returns (bool) {
         balanceOf[msg.sender] -= amount;
 
         // This is safe because the sum of all user
@@ -109,7 +102,7 @@ abstract contract LockeERC20 {
         address from,
         address to,
         uint256 amount
-    ) transferabilityDelay external returns (bool) {
+    ) transferabilityDelay external override returns (bool) {
         if (allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] -= amount;
         }
@@ -139,7 +132,7 @@ abstract contract LockeERC20 {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external {
+    ) external override {
         require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
 
         // This is safe because the only math done is incrementing
@@ -162,7 +155,7 @@ abstract contract LockeERC20 {
         emit Approval(owner, spender, value);
     }
 
-    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+    function DOMAIN_SEPARATOR() public view virtual override returns (bytes32) {
         return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();
     }
 
