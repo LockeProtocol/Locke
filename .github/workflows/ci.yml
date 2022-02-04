@@ -1,28 +1,21 @@
-name: CI
-on:
-  push:
-    branches:
-      - master
-  pull_request:
+name: Tests
+on: [push, pull_request]
 
 jobs:
-  run-ci:
+  check:
+    name: Foundry project
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - uses: actions/setup-node@v2
-      - name: Install dev dependencies
-        run: npm install
 
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
         with:
           version: nightly
 
-      - name: Run lint check
-        run: npm run lint:check
-
+      - name: Install dependencies
+        run: forge install
       - name: Run tests
-        run: forge test
+        run: forge test -vvv
