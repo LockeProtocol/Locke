@@ -9,11 +9,11 @@ contract TestStake is BaseTest {
         stream = streamSetup(block.timestamp + minStartDelay);
         (
             startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
+            endStream,
+            endDepositLock,
+            endRewardLock
         ) = stream.streamParams();
-        endStream = startTime+streamDuration;
+        streamDuration = endStream - startTime;
 
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
         writeBalanceOf(address(this), address(testTokenA), 1<<128);

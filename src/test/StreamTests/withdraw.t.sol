@@ -9,10 +9,11 @@ contract TestWithdraw is BaseTest {
         stream = streamSetup(block.timestamp + minStartDelay);
         (
             startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
+            endStream,
+            endDepositLock,
+            endRewardLock
         ) = stream.streamParams();
+        streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenB), 1<<128);
     }

@@ -11,12 +11,11 @@ contract TestDeposit is BaseTest {
 
         (
             startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
+            endStream,
+            endDepositLock,
+            endRewardLock
         ) = stream.streamParams();
-        endStream = startTime + streamDuration;
-        endDepositLock = endStream + depositLockDuration;
+        streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenB), 1<<128);
     }

@@ -352,7 +352,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
     function streamParams() external view returns (uint32,uint32,uint32,uint32) {
         return (
             startTime,
-            streamDuration,
+            endStream,
             endDepositLock,
             endRewardLock
         );

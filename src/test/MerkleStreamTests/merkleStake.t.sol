@@ -12,11 +12,11 @@ contract TestMerkleStake is BaseTest {
         merkle = merkleStreamSetup(block.timestamp + minStartDelay, merkleRoot);
         (
             startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
+            endStream,
+            endDepositLock,
+            endRewardLock
         ) = merkle.streamParams();
-        endStream = startTime+streamDuration;
+        streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenA), 1<<128);
         writeBalanceOf(address(this), address(testTokenB), 1<<128);

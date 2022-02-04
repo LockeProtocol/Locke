@@ -20,12 +20,11 @@ contract Fuzz is BaseTest {
         stream = streamSetup(block.timestamp + minStartDelay);
         (
             startTime,
-            streamDuration,
-            depositLockDuration,
-            rewardLockDuration
+            endStream,
+            endDepositLock,
+            endRewardLock
         ) = stream.streamParams();
-        endStream = startTime + streamDuration;
-        endDepositLock = endStream + depositLockDuration;
+        streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenA), type(uint112).max);
         writeBalanceOf(address(this), address(testTokenB), type(uint112).max);
@@ -606,7 +605,7 @@ contract StreamFactoryTest is BaseTest {
     //         (uint16 feePercent, bool feeEnabled) = defaultStreamFactory.feeParams();
 
     //         // time stuff
-    //         (uint32 startTime, uint32 streamDuration, uint32 depositLockDuration, uint32 rewardLockDuration) = stream.streamParams();
+    //         (uint32 startTime, uint32 endStream, uint32 depositLockDuration, uint32 rewardLockDuration) = stream.streamParams();
     //         assertEq(startTime, block.timestamp + minStartDelay);
     //         assertEq(streamDuration, minStreamDuration);
     //         assertEq(depositLockDuration, maxDepositLockDuration);
@@ -657,7 +656,7 @@ contract StreamFactoryTest is BaseTest {
     //         (uint16 feePercent, bool feeEnabled) = defaultStreamFactory.feeParams();
 
     //         // time stuff
-    //         (uint32 startTime, uint32 streamDuration, uint32 depositLockDuration, uint32 rewardLockDuration) = stream.streamParams();
+    //         (uint32 startTime, uint32 endStream, uint32 depositLockDuration, uint32 rewardLockDuration) = stream.streamParams();
     //         assertEq(startTime, block.timestamp + minStartDelay);
     //         assertEq(streamDuration, minStreamDuration);
     //         assertEq(depositLockDuration, maxDepositLockDuration);

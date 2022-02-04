@@ -10,9 +10,7 @@ contract LockeLens {
 	function currDepositTokensNotYetStreamed(Stream stream, address who) external view returns (uint256) {
         unchecked {
             uint32 timestamp = uint32(block.timestamp);
-            (uint32 startTime, uint32 streamDuration, ,) = stream.streamParams();
-            uint32 endStream = startTime + streamDuration;
-
+            (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
             if (block.timestamp >= endStream) return 0;
 
 
@@ -45,8 +43,8 @@ contract LockeLens {
      **/
     function rewardsRemainingToAllocate(Stream stream) external view returns (uint256) {
         uint32 timestamp = uint32(block.timestamp);
-        (uint32 startTime, uint32 streamDuration, ,) = stream.streamParams();
-        uint32 endStream = startTime + streamDuration;
+        (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
+        uint32 streamDuration = endStream - startTime;
 
         (
             uint112 rewardTokenAmount,
@@ -65,8 +63,8 @@ contract LockeLens {
      **/
     function currUnstreamed(Stream stream) external view returns (uint256) {
         uint32 timestamp = uint32(block.timestamp);
-        (uint32 startTime, uint32 streamDuration, ,) = stream.streamParams();
-        uint32 endStream = startTime + streamDuration;
+        (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
+        uint32 streamDuration = endStream - startTime;
 
         if (timestamp >= endStream) return 0;
         

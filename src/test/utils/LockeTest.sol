@@ -164,13 +164,11 @@ abstract contract BaseTest is DSTestPlus {
     uint32 minStartDelay;
 
     uint32 startTime;
-    uint32 streamDuration;
-    uint32 depositLockDuration;
-    uint32 rewardLockDuration;
-
     uint32 endStream;
     uint32 endDepositLock;
     uint32 endRewardLock;
+
+    uint32 streamDuration;
 
     function checkState() internal {
 
