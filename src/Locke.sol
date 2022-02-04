@@ -272,12 +272,9 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned {
         }
     }
 
-    function lockInternal() internal {
+    modifier lock {
         if (unlocked != 1) revert Reentrant();
         unlocked = 2;
-    }
-    modifier lock {
-        lockInternal();
         _;
         unlocked = 1;
     }
