@@ -215,7 +215,13 @@ contract Stream is IStream, LockeERC20, MinimallyExternallyGoverned {
         uint16 _feePercent,
         bool _feeEnabled
     )
-        LockeERC20(_depositToken, _streamId, _startTime + _streamDuration)
+        LockeERC20(
+            _depositToken,
+            _streamId,
+            _startTime + _streamDuration,
+            _startTime + _streamDuration + _depositLockDuration,
+            _isIndefinite
+        )
         MinimallyExternallyGoverned(msg.sender) // inherit factory governance 
     {
         // No error code or msg to reduce bytecode size

@@ -49,21 +49,87 @@ abstract contract LockeERC20 is ILockeERC20 {
     constructor(
         address depositToken,
         uint256 streamId,
-        uint32 endStream
+        uint32 endStream,
+        uint32 endDepositLock,
+        bool isIndefinite
     ) {
 
-        // locke + depositTokenName + streamId = lockeUSD Coin-1
-        name = string(abi.encodePacked("locke", ERC20(depositToken).name(), ": ", toString(streamId)));
-        // locke + Symbol + streamId = lockeUSDC1
-        // TODO: we could have start_time+stream_duration+depositlocktime as maturity-date
-        // i.e. lockeETH8-AUG-14-2022
-        symbol = string(abi.encodePacked("locke", ERC20(depositToken).symbol(), toString(streamId)));
+        if (!isIndefinite) {
+            // locke + depositTokenName + streamId = lockeUSD Coin-1
+            (uint256 year, uint256 month, uint256 day) = _daysToDate(endDepositLock / 86400);
+            name = string(abi.encodePacked(
+                "locke",
+                ERC20(depositToken).name(),
+                ": ",
+                toString(streamId),
+                " ,",
+                _monthToString(month),
+                "-",
+                toString(day),
+                "-",
+                toString(year)
+            ));
+            // locke + Symbol + streamId = lockeUSDC1
+            // TODO: we could have start_time+stream_duration+depositlocktime as maturity-date
+            // i.e. lockeETH8-AUG-14-2022
+
+            symbol = string(abi.encodePacked(
+                "locke",
+                ERC20(depositToken).symbol(),
+                toString(streamId),
+                "-",
+                _monthToString(month),
+                "-",
+                toString(day),
+                "-",
+                toString(year)
+            ));
+        }
+
         decimals = 18;
 
         transferStartTime = endStream;
 
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
+    }
+
+    function _monthToString(uint256 month) internal pure returns (string memory s) {
+        assembly {
+            mstore(s, 0x03)
+            switch month
+            case 1 { mstore(add(s, 0x20), "JAN") }
+            case 2 { mstore(add(s, 0x20), "FEB") }
+            case 3 { mstore(add(s, 0x20), "MAR") }
+            case 4 { mstore(add(s, 0x20), "APR") }
+            case 5 { mstore(add(s, 0x20), "MAY") }
+            case 6 { mstore(add(s, 0x20), "JUN") }
+            case 7 { mstore(add(s, 0x20), "JUL") }
+            case 8 { mstore(add(s, 0x20), "AUG") }
+            case 9 { mstore(add(s, 0x20), "SEP") }
+            case 10 { mstore(add(s, 0x20), "OCT") }
+            case 11 { mstore(add(s, 0x20), "NOV") }
+            case 12 { mstore(add(s, 0x20), "DEC") }
+        }
+    }
+
+    function _daysToDate(uint _days) internal pure returns (uint year, uint month, uint day) {
+        int __days = int(_days);
+
+        int L = __days + 68569 + 2440588;
+        int N = 4 * L / 146097;
+        L = L - (146097 * N + 3) / 4;
+        int _year = 4000 * (L + 1) / 1461001;
+        L = L - 1461 * _year / 4 + 31;
+        int _month = 80 * L / 2447;
+        int _day = L - 2447 * _month / 80;
+        L = _month / 11;
+        _month = _month + 2 - 12 * L;
+        _year = 100 * (N - 49) + _year + L;
+
+        year = uint(_year);
+        month = uint(_month);
+        day = uint(_day);
     }
 
     /*///////////////////////////////////////////////////////////////
