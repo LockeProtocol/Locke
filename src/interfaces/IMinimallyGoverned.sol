@@ -8,9 +8,9 @@ interface IMinimallyGoverned {
     event NewGov(address indexed oldGov, address indexed newGov);
     event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
 
-    function gov() external view returns (address);
+    function gov() external view returns (address _gov);
     function __abdicate() external;
     function acceptGov() external;
-    function pendingGov() external view returns (address);
+    function pendingGov() external view returns (address _pendingGov);
     function setPendingGov(address newPendingGov) external;
 }

@@ -6,14 +6,14 @@ interface ILockeERC20 {
     event Transfer(address indexed from, address indexed to, uint256 amount);
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
-    function name() external view returns (string memory name);
-    function symbol() external view returns (string memory symbol);
-    function decimals() external view returns (uint8 decimals);
-    function transferStartTime() external view returns (uint32 transferStartTime);
-    function totalSupply() external view returns (uint256 totalSupply);
-    function balanceOf(address who) external view returns (uint256 balanceOf);
-    function allowance(address owner, address spender) external view returns (uint256 allowance);
-    function PERMIT_TYPEHASH() external view returns (bytes32 PERMIT_TYPEHASH);
+    function name() external view returns (string memory _name);
+    function symbol() external view returns (string memory _symbol);
+    function decimals() external view returns (uint8 _decimals);
+    function transferStartTime() external view returns (uint32 _transferStartTime);
+    function totalSupply() external view returns (uint256 _totalSupply);
+    function balanceOf(address who) external view returns (uint256 _balanceOf);
+    function allowance(address owner, address spender) external view returns (uint256 _allowance);
+    function PERMIT_TYPEHASH() external view returns (bytes32 _PERMIT_TYPEHASH);
     function nonces(address who) external view returns (uint256 nonce);
     function approve(address spender, uint256 amount) external returns (bool);
     function transfer(address to, uint256 amount) external returns (bool);
