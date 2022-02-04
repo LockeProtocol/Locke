@@ -1,5 +1,5 @@
-forge-std/=/home/brock/git_pkgs/Locke/lib/forge-std/src/
-openzeppelin-contracts/=/home/brock/git_pkgs/Locke/lib/openzeppelin-contracts/
-weird-erc20/=/home/brock/git_pkgs/Locke/lib/solmate/lib/weird-erc20/src/
-solmate/=/home/brock/git_pkgs/Locke/lib/solmate/src/
-ds-test/=/home/brock/git_pkgs/Locke/lib/ds-test/src/
+forge-std/=./lib/forge-std/src/
+openzeppelin-contracts/=./lib/openzeppelin-contracts/
+weird-erc20/=./lib/solmate/lib/weird-erc20/src/
+solmate/=./lib/solmate/src/
+ds-test/=./lib/ds-test/src/
