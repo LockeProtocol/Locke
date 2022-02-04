@@ -3,16 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./utils/LockeTest.sol";
 
-
-
-
-
-
-
-
-
-
-
 contract Fuzz is BaseTest {
     function setUp() public {
         tokenABC();
@@ -54,112 +44,6 @@ contract Fuzz is BaseTest {
         // Account for decrementing x to make max inclusive.
         if (max == type(uint256).max && x != 0) result++;
     }
-
-    // function testFuzz_invariants(
-    //     uint32 depositLock,
-    //     uint32 rewardLock,
-    //     uint32 streamDur,
-    //     uint32 startDel,
-    //     uint112 amountReward,
-    //     uint16[5] memory delays
-    // ) public {
-    //     depositLockDuration = uint32(bound(depositLock, 0, maxDepositLockDuration));
-    //     rewardLockDuration = uint32(bound(rewardLock, 0, maxRewardLockDuration));
-    //     streamDuration = uint32(bound(streamDur, minStreamDuration, maxStreamDuration));
-    //     startDel = uint32(bound(startDel, minStartDelay, minStartDelay + 24 hours));
-
-    //     startTime = uint32(block.timestamp) + startDel;
-    //     endStream = startTime + streamDuration;
-    //     endDepositLock = endStream + depositLockDuration;
-    //     endRewardLock = startTime + rewardLockDuration;
-
-
-    //     uint256 preBalA = testTokenB.balanceOf(alice);
-    //     uint256 preBalB = testTokenB.balanceOf(bob);
-    //     stream = defaultStreamFactory.createStream(
-    //         address(testTokenA),
-    //         address(testTokenB),
-    //         startTime,
-    //         streamDuration,
-    //         depositLockDuration,
-    //         rewardLockDuration,
-    //         false
-    //     );
-
-    //     testTokenA.approve(address(stream), amountReward);
-    //     stream.fundStream(amountReward);
-
-    //     uint256 t = block.timestamp;
-    //     uint256 accumDelay;
-    //     ( , , uint112 rewardsA, uint112 tokensA, ,) = stream.tokenStreamForAccount(alice);
-    //     ( , , uint112 rewardsB, uint112 tokensB, ,) = stream.tokenStreamForAccount(bob);
-    //     checkState();
-    //     uint256 actionsTaken = 0;
-    //     while (t < endDepositLock) {
-    //         for (uint256 i = 0; i < delays.length; i++) {
-    //             uint16 delay = uint16(bound(delays[i], 15, type(uint16).max / 2));
-    //             if (
-    //                 willTakeAction(block.timestamp + delay + accumDelay, alice, rewardsA, tokensA)
-    //                 || willTakeAction(block.timestamp + delay + accumDelay, bob, rewardsB, tokensB)
-    //             ) {
-    //                 emit log_named_uint("action taken", actionsTaken);
-    //                 actionsTaken += 1;
-    //                 vm.warp(block.timestamp + delay + accumDelay);
-    //                 uint112 bobBal = uint112(bound(testTokenB.balanceOf(bob) / delay, 1, type(uint112).max));
-    //                 uint112 aliceBal = uint112(bound(testTokenB.balanceOf(alice) / delay, 1, type(uint112).max));
-    //                 randomAction(alice, aliceBal, rewardsA, tokensA);
-    //                 randomAction(bob, bobBal, rewardsB, tokensB);
-    //                 t = block.timestamp;
-    //                 checkState();
-    //                 ( , , rewardsA, tokensA, ,) = stream.tokenStreamForAccount(alice);
-    //                 ( , , rewardsB, tokensB, ,) = stream.tokenStreamForAccount(bob);
-    //                 if (actionsTaken > 20) {
-    //                     break;
-    //                 }
-    //             } else {
-    //                 accumDelay += delay;
-    //             }
-    //         }
-    //         if (actionsTaken > 20) {
-    //             break;
-    //         }
-    //     }
-    //     vm.warp(endDepositLock > endRewardLock ? endDepositLock + 1 : endRewardLock + 1);
-
-    //     uint112 balAmountB = uint112(LockeERC20(address(stream)).balanceOf(bob));
-    //     if (balAmountB > 0) {
-    //         vm.startPrank(bob);
-    //         stream.claimDepositTokens(balAmountB);
-    //         if (stream.getEarned(bob) > 0) {
-    //             stream.claimReward();    
-    //         }
-    //         vm.stopPrank();
-    //     }
-
-
-    //     uint112 balAmountA = uint112(LockeERC20(address(stream)).balanceOf(alice));
-    //     if (balAmountA > 0) {
-    //         vm.startPrank(alice);
-    //         stream.claimDepositTokens(balAmountA);
-    //         if (stream.getEarned(alice) > 0) {
-    //             stream.claimReward();    
-    //         }
-    //         vm.stopPrank();
-    //     }
-
-    //     assertEq(testTokenB.balanceOf(alice), preBalA);
-    //     require(!failed, "alice bal");
-    //     assertEq(testTokenB.balanceOf(bob), preBalB);
-    //     require(!failed, "bob bal");
-    //     assertEq(testTokenB.balanceOf(address(stream)), 0);
-    //     require(!failed, "stream bal b");
-    //     assertTrue(testTokenA.balanceOf(address(stream)) < 5);
-    //     require(!failed, "stream bal A");
-    //     assertTrue(testTokenA.balanceOf(bob) > 0);
-    //     require(!failed, "bob bal A");
-    //     assertTrue(testTokenA.balanceOf(alice) > 0);
-    //     require(!failed, "alice bal A");
-    // }
 
     function randomAction(address who, uint112 amount, uint112 rewards, uint112 tokens) internal {
         if (block.timestamp % 5 == 0 && block.timestamp < endStream) {
