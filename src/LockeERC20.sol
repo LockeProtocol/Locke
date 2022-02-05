@@ -5,6 +5,87 @@ import "solmate/tokens/ERC20.sol";
 import "./interfaces/ILockeERC20.sol";
 import "./SharedState.sol";
 
+
+library DateTime {
+    uint256 private constant MAX_UINT256_STRING_LENGTH = 78;
+    uint8 private constant ASCII_DIGIT_OFFSET = 48;
+
+    /// @dev Converts a `uint256` value to a string.
+    /// @param n The integer to convert.
+    /// @return nstr `n` as a decimal string.
+    function toString(uint256 n) public pure returns (string memory nstr) {
+        if (n == 0) {
+            return "0";
+        }
+        // Overallocate memory
+        nstr = new string(MAX_UINT256_STRING_LENGTH);
+        uint256 k = MAX_UINT256_STRING_LENGTH;
+        // Populate string from right to left (lsb to msb).
+        while (n != 0) {
+            assembly {
+                let char := add(
+                    ASCII_DIGIT_OFFSET,
+                    mod(n, 10)
+                )
+                mstore(add(nstr, k), char)
+                k := sub(k, 1)
+                n := div(n, 10)
+            }
+        }
+        assembly {
+            // Shift pointer over to actual start of string.
+            nstr := add(nstr, k)
+            // Store actual string length.
+            mstore(nstr, sub(MAX_UINT256_STRING_LENGTH, k))
+        }
+        return nstr;
+    }
+
+    function _monthToString(uint256 month) internal pure returns (string memory s) {
+        assembly {
+            // grab freemem
+            let sp := mload(0x40)
+            // set length
+            mstore(sp, 0x03)
+            // update freemem
+            mstore(0x40, add(sp, 0x40))
+            // set string content
+            switch month
+            case 1 { mstore(add(sp, 0x20), "JAN") }
+            case 2 { mstore(add(sp, 0x20), "FEB") }
+            case 3 { mstore(add(sp, 0x20), "MAR") }
+            case 4 { mstore(add(sp, 0x20), "APR") }
+            case 5 { mstore(add(sp, 0x20), "MAY") }
+            case 6 { mstore(add(sp, 0x20), "JUN") }
+            case 7 { mstore(add(sp, 0x20), "JUL") }
+            case 8 { mstore(add(sp, 0x20), "AUG") }
+            case 9 { mstore(add(sp, 0x20), "SEP") }
+            case 10 { mstore(add(sp, 0x20), "OCT") }
+            case 11 { mstore(add(sp, 0x20), "NOV") }
+            case 12 { mstore(add(sp, 0x20), "DEC") }
+            // set return value as ptr to string
+            s := sp
+        }
+    }
+
+    function daysToDate(uint _days) public pure returns (string memory datetime) {
+        int __days = int(_days);
+
+        int L = __days + 68569 + 2440588;
+        int N = 4 * L / 146097;
+        L = L - (146097 * N + 3) / 4;
+        int _year = 4000 * (L + 1) / 1461001;
+        L = L - 1461 * _year / 4 + 31;
+        int _month = 80 * L / 2447;
+        int _day = L - 2447 * _month / 80;
+        L = _month / 11;
+        _month = _month + 2 - 12 * L;
+        _year = 100 * (N - 49) + _year + L;
+
+        datetime = string(abi.encodePacked(_monthToString(uint256(_month)), "-", toString(uint256(_day)), "-", toString(uint256(_year))));
+    }
+}
+
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
 /// @author Modified from Solmate (https://github.com/Rari-Capital/solmate/blob/master/src/tokens/ERC20.sol)
 abstract contract LockeERC20 is SharedState, ILockeERC20 {
@@ -19,7 +100,6 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
 
     uint8 public override immutable decimals;
 
-    uint32 private immutable endDepositLock;
     uint32 private immutable endStream;
 
     /*///////////////////////////////////////////////////////////////
@@ -56,25 +136,20 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         uint32 _endStream,
         bool isIndefinite
     )
-        SharedState(depositToken, _endDepositLock, _endStream)
+        SharedState(depositToken, _endDepositLock)
     {
-        endDepositLock = _endDepositLock;
         endStream = _endStream;
 
         if (!isIndefinite) {
             // locke + depositTokenName + streamId = lockeUSD Coin-1
-            (uint256 year, uint256 month, uint256 day) = _daysToDate(endDepositLock / 86400);
+            string memory datetime = DateTime.daysToDate(_endDepositLock / 86400);
             name = string(abi.encodePacked(
                 "locke",
                 ERC20(depositToken).name(),
+                " ",
+                DateTime.toString(streamId),
                 ": ",
-                toString(streamId),
-                " ,",
-                _monthToString(month),
-                "-",
-                toString(day),
-                "-",
-                toString(year)
+                datetime
             ));
             // locke + Symbol + streamId = lockeUSDC1
             // TODO: we could have start_time+stream_duration+depositlocktime as maturity-date
@@ -83,13 +158,9 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
             symbol = string(abi.encodePacked(
                 "locke",
                 ERC20(depositToken).symbol(),
-                toString(streamId),
+                DateTime.toString(streamId),
                 "-",
-                _monthToString(month),
-                "-",
-                toString(day),
-                "-",
-                toString(year)
+                datetime
             ));
         }
 
@@ -99,52 +170,18 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
     }
 
-    function _monthToString(uint256 month) internal pure returns (string memory s) {
-        assembly {
-            mstore(s, 0x03)
-            switch month
-            case 1 { mstore(add(s, 0x20), "JAN") }
-            case 2 { mstore(add(s, 0x20), "FEB") }
-            case 3 { mstore(add(s, 0x20), "MAR") }
-            case 4 { mstore(add(s, 0x20), "APR") }
-            case 5 { mstore(add(s, 0x20), "MAY") }
-            case 6 { mstore(add(s, 0x20), "JUN") }
-            case 7 { mstore(add(s, 0x20), "JUL") }
-            case 8 { mstore(add(s, 0x20), "AUG") }
-            case 9 { mstore(add(s, 0x20), "SEP") }
-            case 10 { mstore(add(s, 0x20), "OCT") }
-            case 11 { mstore(add(s, 0x20), "NOV") }
-            case 12 { mstore(add(s, 0x20), "DEC") }
-        }
-    }
-
-    function _daysToDate(uint _days) internal pure returns (uint year, uint month, uint day) {
-        int __days = int(_days);
-
-        int L = __days + 68569 + 2440588;
-        int N = 4 * L / 146097;
-        L = L - (146097 * N + 3) / 4;
-        int _year = 4000 * (L + 1) / 1461001;
-        L = L - 1461 * _year / 4 + 31;
-        int _month = 80 * L / 2447;
-        int _day = L - 2447 * _month / 80;
-        L = _month / 11;
-        _month = _month + 2 - 12 * L;
-        _year = 100 * (N - 49) + _year + L;
-
-        year = uint(_year);
-        month = uint(_month);
-        day = uint(_day);
-    }
-
     /*///////////////////////////////////////////////////////////////
                               ERC20 LOGIC
     //////////////////////////////////////////////////////////////*/
 
     modifier transferabilityDelay {
-        // ensure the time is after start time
+        // ensure the time is after end stream
         if (block.timestamp < endStream) revert NotTransferableYet();
         _;
+    }
+
+    function transferStartTime() external view override returns (uint32) {
+        return endStream;
     }
 
     function approve(address spender, uint256 amount) external override returns (bool) {
@@ -269,33 +306,5 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         }
 
         emit Transfer(from, address(0), amount);
-    }
-
-
-    // Helpers
-    function toString(uint _i)
-        internal
-        pure
-        returns (string memory) 
-    {
-        if (_i == 0) {
-            return "0";
-        }
-        uint j = _i;
-        uint len;
-        while (j != 0) {
-            len++;
-            j /= 10;
-        }
-        bytes memory bstr = new bytes(len);
-        uint k = len;
-        while (_i != 0) {
-            k = k-1;
-            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
-            bytes1 b1 = bytes1(temp);
-            bstr[k] = b1;
-            _i /= 10;
-        }
-        return string(bstr);
     }
 }

@@ -32,4 +32,5 @@ interface ILockeERC20 is IReimbursementToken {
         bytes32 s
     ) external;
     function DOMAIN_SEPARATOR() external view returns (bytes32);
+    function transferStartTime() external view returns (uint32);
 }

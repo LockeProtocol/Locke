@@ -5,7 +5,7 @@ import "./Locke.sol";
 import "./MerkleLocke.sol";
 import "./interfaces/IStreamFactory.sol";
 
-// Bytecode size hack - allows StreamFactory to be larger than 24kb - size(type(Stream).creationCode)
+// Bytecode size hack - allows StreamFactory to be larger than: 24kb - size(type(Stream).creationCode)
 contract StreamCreation is IStreamCreation {
     bytes public override constant creationCode = type(Stream).creationCode;
 }
@@ -23,13 +23,6 @@ contract StreamFactory is IStreamFactory, MinimallyGoverned {
     IStreamCreation public override immutable streamCreation;
     IMerkleStreamCreation public override immutable merkleStreamCreation;
     uint16 constant MAX_FEE_PERCENT = 500; // 500/10000 == 5%
-
-    // ======= Errors =========
-    error StartTimeError();
-    error StreamDurationError();
-    error LockDurationError();
-    error GovParamsError();
-    error DeployFailed();
 
     constructor(
         address _governor,

@@ -34,6 +34,13 @@ interface IStreamFactory {
     event StreamParametersUpdated(GovernableStreamParams oldParams, GovernableStreamParams newParams);
     event FeeParametersUpdated(GovernableFeeParams oldParams, GovernableFeeParams newParams);
 
+    // ======= Errors =========
+    error StartTimeError();
+    error StreamDurationError();
+    error LockDurationError();
+    error GovParamsError();
+    error DeployFailed();
+    
     // ======  Functions  =====
     function createStream(address rewardToken,
         address depositToken,

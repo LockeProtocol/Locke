@@ -3,6 +3,7 @@
 pragma solidity 0.8.11;
 
 import "./Locke.sol";
+import "./interfaces/IMerkleStream.sol";
 
 library MerkleProof {
     function verify(
@@ -37,7 +38,7 @@ library MerkleProof {
     }
 }
 
-contract MerkleStream is Stream {
+contract MerkleStream is Stream, IMerkleStream {
     bytes32 public immutable merkleRoot;
 
     constructor(
@@ -70,8 +71,6 @@ contract MerkleStream is Stream {
     {
         merkleRoot = _merkleRoot;
     }
-
-    error NoAccess();
     
     function stake(uint112 amount, bytes32[] memory proof) external lock updateStream {
         if (!MerkleProof.verify(proof, merkleRoot, keccak256(abi.encodePacked(msg.sender, true)))) revert NoAccess();
@@ -79,7 +78,7 @@ contract MerkleStream is Stream {
         _stake(amount);
     }
 
-    function stake(uint112 amount) external override lock updateStream {
+    function stake(uint112 amount) external override(Stream, IStream) lock updateStream {
         if (!tokenStreamForAccount[msg.sender].merkleAccess) revert NoAccess();
         _stake(amount);
     }

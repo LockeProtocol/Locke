@@ -53,7 +53,8 @@ contract LockeLens {
             uint112 depositTokenFlashloanFeeAmount
         ) = stream.tokenAmounts();
 
-        if (endStream < timestamp) return 0;
+        if (timestamp > endStream) return 0;
+        if (timestamp <= startTime) return rewardTokenAmount;
         
         return uint256(endStream - timestamp) * rewardTokenAmount / streamDuration;
     }
@@ -67,10 +68,12 @@ contract LockeLens {
         uint32 streamDuration = endStream - startTime;
 
         if (timestamp >= endStream) return 0;
+
+        uint256 unstreamed = stream.unstreamed();
+        if (timestamp < startTime) return unstreamed;
         
         uint32 lastUpdate = stream.lastUpdate();
         uint32 tdelta = timestamp - lastUpdate;
-        uint256 unstreamed = stream.unstreamed();
         return unstreamed - (uint256(tdelta) * unstreamed / (endStream - lastUpdate));
     }
 }
