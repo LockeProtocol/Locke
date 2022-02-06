@@ -3,7 +3,7 @@ This repo consists of 5 main contracts:
 | Contract Name    | Description      | SLOC |
 | ---------------- | ---------------- | ---- |
 | `StreamFactory`  | A factory for creating `Streams`                                             | \~600 |
-| `Stream`         | A contract for managing 2 counterparty token lockup rental & buying          | \~800 |
+| `Stream`         | A contract for managing 2 counterparty token lockup rental & indefinite lockup          | \~800 |
 | `MerkleStream`   | Same as Stream, but with merkle tree restrictions for staking                | \~70 |
 | `LockeERC20`     | Inherited by `Stream`, this turns `Stream` deposits into a transferable ERC20| \~200 |
 | `Gov`            | Extremely minimal governance                                                 | \~50 |
