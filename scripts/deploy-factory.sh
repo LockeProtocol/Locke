@@ -7,6 +7,13 @@ set -eo pipefail
 
 # Deploy.
 
+DateTime=$(deploy DateTime LockeERC20.sol)
+log "DateTime deployed at: " $DateTime
+
+export DAPP_LIBRARIES=" src/LockeERC20.sol:DateTime:$DateTime"
+
+dapp build
+
 StreamCreation=$(deploy StreamCreation LockeFactory.sol)
 log "StreamCreation deployed at: " $StreamCreation
 
