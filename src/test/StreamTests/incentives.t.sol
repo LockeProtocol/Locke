@@ -26,9 +26,10 @@ contract TestIncentive is BaseTest {
         testTokenC.approve(address(stream), 100);
 
         stream.createIncentive(address(testTokenC), 100);
-                (uint112 amt, bool flag) = stream.incentives(address(testTokenC));
+        (uint112 amt, bool flag) = stream.incentives(address(testTokenC));
         assertTrue(flag);
         assertEq(amt, 100);
+        checkState();
     }
 
     function test_claimIncentiveCreatorRevert() public {
@@ -57,12 +58,14 @@ contract TestIncentive is BaseTest {
     function test_claimIncentive() public {
         testTokenC.approve(address(stream), 100);
         stream.createIncentive(address(testTokenC), 100);
+        checkState();
 
         vm.warp(block.timestamp + minStartDelay + minStreamDuration);
 
         uint256 preBal = testTokenC.balanceOf(address(this));
 
         stream.claimIncentive(address(testTokenC));
+        checkState();
         
         assertEq(testTokenC.balanceOf(address(this)), preBal + 100);
     }

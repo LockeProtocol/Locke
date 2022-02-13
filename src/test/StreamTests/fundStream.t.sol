@@ -33,26 +33,23 @@ contract TestFundStream is BaseTest {
         testTokenA.approve(address(stream), type(uint256).max);
         uint112 amt = 1337;
 
-
         stream.fundStream(amt);
-                {
+        {
             (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
             assertEq(rewardTokenAmount, amt);
             assertEq(rewardTokenFeeAmount, 0);
             assertEq(testTokenA.balanceOf(address(stream)), amt);
         }
+        checkState();
         
-
-        // log gas usage for a second fund stream
-
-
         stream.fundStream(1337);
-                {
+        {
             (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
             assertEq(rewardTokenAmount, 2*amt);
             assertEq(rewardTokenFeeAmount, 0);
             assertEq(testTokenA.balanceOf(address(stream)), 2*1337);
         }
+        checkState();
     }
 
     function test_fundStreamFees() public {
@@ -63,15 +60,12 @@ contract TestFundStream is BaseTest {
 
 
         fee.fundStream(amt);
-                {
+        {
             (uint112 rewardTokenAmount, uint112 _unused, uint112 rewardTokenFeeAmount, ) = fee.tokenAmounts();
             assertEq(rewardTokenAmount, amt - feeAmt);
             assertEq(rewardTokenFeeAmount, feeAmt);
             assertEq(testTokenA.balanceOf(address(fee)), 1337);
         }
-
-        // log gas usage for a second fund stream
-
 
         fee.fundStream(amt);
         

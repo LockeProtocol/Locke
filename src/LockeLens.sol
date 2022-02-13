@@ -30,8 +30,7 @@ contract LockeLens {
             uint32 acctTimeDelta = timestamp - lastUpdate;
 
             if (acctTimeDelta > 0) {
-                uint256 streamAmt = uint256(acctTimeDelta) * tokens / (endStream - lastUpdate);
-                return tokens - uint112(streamAmt);
+                return uint112(uint256(endStream - timestamp) * tokens / (endStream - lastUpdate));
             } else {
                 return tokens;
             }

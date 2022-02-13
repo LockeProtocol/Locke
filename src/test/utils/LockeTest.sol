@@ -134,7 +134,9 @@ contract DSTestPlus is DSTest {
 }
 
 
+library Invariants {
 
+}
 abstract contract BaseTest is DSTestPlus {
     using stdStorage for StdStorage;
     
@@ -175,26 +177,64 @@ abstract contract BaseTest is DSTestPlus {
     uint32 streamDuration;
 
     function checkState() internal {
+        require(!failed, "other");
 
-        // virtual balance invariant
-        ( , uint256 virtualBalanceA, uint112 rewardsA, uint112 tokensA, uint32 luA,) = stream.tokenStreamForAccount(alice);
-        ( , uint256 virtualBalanceB, uint112 rewardsB, uint112 tokensB, uint32 luB,) = stream.tokenStreamForAccount(bob);
-        ( , uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu,) = stream.tokenStreamForAccount(address(this));
+        BaseTest(address(this)).rewardInvariant();
+        BaseTest(address(this)).timeUpdateInvariant();
+        BaseTest(address(this)).virtualBalanceInvariant();
+        BaseTest(address(this)).receiptTokenInvariant();
+        
+    }
+
+    function receiptTokenInvariant() public {
+        if (!stream.isIndefinite()) {
+            (
+                uint112 rewardTokenAmount,
+                uint112 depositTokenAmount,
+                uint112 rewardTokenFeeAmount,
+                uint112 depositTokenFlashloanFeeAmount
+            ) = stream.tokenAmounts();
+            uint256 internalBal = depositTokenAmount - stream.redeemedDepositTokens();
+            assertEq(internalBal, LockeERC20(address(stream)).totalSupply());
+            require(!failed, "receipt token invariant");
+        }
+    }
+
+    function rewardInvariant() public {
+        ( , , uint112 rewardsA, , ,) = stream.tokenStreamForAccount(alice);
+        ( , , uint112 rewardsB, , ,) = stream.tokenStreamForAccount(bob);
+        ( , , uint112 rewards , , ,) = stream.tokenStreamForAccount(address(this));
+        (uint112 rewardTokenAmount,,,) = stream.tokenAmounts();
+        assertLe(rewardsA + rewardsB + rewards, rewardTokenAmount);
+        require(!failed, "reward invariant");
+    }
+
+    function timeUpdateInvariant() public {
+        ( , , , , uint32 luA,) = stream.tokenStreamForAccount(alice);
+        ( , , , , uint32 luB,) = stream.tokenStreamForAccount(bob);
+        ( , , , , uint32 lu ,) = stream.tokenStreamForAccount(address(this));
         uint32 max3 = luA > luB ? luA : luB;
         max3 = max3 > lu ? max3 : lu;
+
+        // individual update invariant, may be less than because ts.lastUpdate may be set to 0 after claimReward & timestamp >= endStream
         if (max3 != 0) {
-            assertEq(max3, stream.lastUpdate());
+            if (block.timestamp < endStream) {
+                assertEq(max3, stream.lastUpdate());
+            } else {
+                assertLe(max3, stream.lastUpdate());
+            }
         }
         require(!failed, "lastupdate");
+    }
 
-
-
-        // receipt token invariant
-        if (!stream.isIndefinite()) {
-            assertEq(testTokenB.balanceOf(address(stream)), LockeERC20(address(stream)).totalSupply());
+    function virtualBalanceInvariant() public {
+        if (block.timestamp < endStream) {
+            ( , uint256 virtualBalanceA,,,,) = stream.tokenStreamForAccount(alice);
+            ( , uint256 virtualBalanceB,,,,) = stream.tokenStreamForAccount(bob);
+            ( , uint256 virtualBalance ,,,,) = stream.tokenStreamForAccount(address(this));
+            assertEq(virtualBalanceA + virtualBalanceB + virtualBalance, stream.totalVirtualBalance());
+            require(!failed, "virtual balance invariant");
         }
-        require(!failed, "receipt token invariant");
-        
     }
 
     function setupUser(bool writeBalances) internal returns (address user) {

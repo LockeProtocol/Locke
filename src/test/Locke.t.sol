@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
 import "./utils/LockeTest.sol";
@@ -90,35 +89,121 @@ contract Fuzz is BaseTest {
         uint256 fudgeAmtB,
         uint256 fudgeAmtC
     ) public {
+        vm.warp(startTime - 1);
         writeBalanceOf(address(this), address(testTokenA), type(uint256).max);
         writeBalanceOf(address(this), address(testTokenB), type(uint256).max);
         amountA = uint112(bound(amountA, 1, type(uint112).max));
+        fudgeAmtA = bound(fudgeAmtA, 1, type(uint256).max - amountA);
         amountB = uint112(bound(amountB, 1, type(uint112).max));
-
+        fudgeAmtB = bound(fudgeAmtB, 1, type(uint256).max - amountB);
         testTokenA.approve(address(stream), amountA);
         stream.fundStream(amountA);
 
         testTokenB.approve(address(stream), amountB);
         stream.stake(amountB);
+        checkState();
 
         testTokenA.transfer(address(stream), fudgeAmtA);
         testTokenB.transfer(address(stream), fudgeAmtB);
         testTokenC.transfer(address(stream), fudgeAmtC);
 
         vm.warp(endDepositLock + 1);
-        stream.tokenStreamForAccount(address(this));
-        stream.claimReward();
+        if (stream.getEarned(address(this)) > 0) {
+            stream.claimReward();
+        }
         stream.claimDepositTokens(amountB);
         stream.creatorClaim(address(this));
+        checkState();
 
         stream.recoverTokens(address(testTokenA), address(this));
         stream.recoverTokens(address(testTokenB), address(this));
         stream.recoverTokens(address(testTokenC), address(this));
+        checkState();
 
         // leave less than 0.01 tokens from rounding
         assertTrue(testTokenA.balanceOf(address(stream)) < 10**16);
         assertEq(testTokenB.balanceOf(address(this)), type(uint256).max);
         assertEq(testTokenC.balanceOf(address(this)), type(uint256).max);
+    }
+
+    function testFuzz_withdrawRepeated(
+        uint8[20] memory delays,
+        uint96 amountA,
+        uint96 amountB
+    ) public {
+
+        amountA = uint96(bound(amountA, 1, type(uint96).max));
+        amountB = uint96(bound(amountB, 1, type(uint96).max));
+        uint32 time = startTime + delays[0];
+        vm.warp(time);
+
+        vm.startPrank(bob);
+        testTokenB.approve(address(stream), amountB);
+        stream.stake(amountB);
+        vm.stopPrank();
+        checkState();
+
+        vm.warp(time + delays[1]);
+        testTokenB.approve(address(stream), amountA);
+        stream.stake(amountA);
+        uint256 bob_tokens = lens.currDepositTokensNotYetStreamed(stream, bob);
+        uint256 this_tokens = lens.currDepositTokensNotYetStreamed(stream, address(this));
+        checkState();
+
+        for (uint256 i = 1; i < delays.length; i++) {
+            (, , , uint112 t0, , ) = stream.tokenStreamForAccount(address(this));
+            (, , , uint112 bob_t0, , ) = stream.tokenStreamForAccount(bob);
+            time += delays[i];
+            if (time >= endStream) {
+                vm.warp(endStream - 1);
+                break;
+            }
+            vm.warp(time);
+            bob_tokens = lens.currDepositTokensNotYetStreamed(stream, bob);
+            this_tokens = lens.currDepositTokensNotYetStreamed(stream, address(this));
+            uint112 amount = uint112(bound(uint256(amountA) * delays[i] / type(uint8).max, 0, this_tokens));
+            if (i % 3 == 0) {
+                vm.startPrank(bob);
+                amount = uint112(bound(uint256(amountB) * delays[i] / type(uint8).max, 0, bob_tokens));
+                amountB -= uint96(amount);
+                if (lens.currDepositTokensNotYetStreamed(stream, bob) < amount) {
+                    continue;
+                }
+            } else {
+                if (lens.currDepositTokensNotYetStreamed(stream, address(this)) < amount) {
+                    continue;
+                }
+                amountA -= uint96(amount);
+            }
+            if (amount == 0) {
+                vm.stopPrank();
+                continue;
+            }
+
+            stream.withdraw(amount);
+            checkState();
+
+            (, uint256 virtualBalance, , uint112 t, , ) = stream.tokenStreamForAccount(address(this));
+            (, uint256 bob_virtualBalance, , uint112 bob_t, , ) = stream.tokenStreamForAccount(bob);
+            assertLe(bob_t, bob_t0);
+            assertLe(t, t0);
+            assertEq(stream.totalVirtualBalance(), virtualBalance + bob_virtualBalance);
+            vm.stopPrank();
+            require(!failed);
+        }
+
+        if (lens.currDepositTokensNotYetStreamed(stream, address(this)) > 0) {
+            stream.exit();
+        }
+        if ( lens.currDepositTokensNotYetStreamed(stream, bob) > 0) {
+            vm.prank(bob);
+            stream.exit();
+        }
+        checkState();
+
+        ( , uint256 virtualBalance,,,,) = stream.tokenStreamForAccount(address(this));
+        ( , uint256 bob_virtualBalance,,,,) = stream.tokenStreamForAccount(bob);
+        assertEq(stream.totalVirtualBalance(), virtualBalance + bob_virtualBalance);
     }
 
     function testFuzz_stake(
@@ -137,6 +222,7 @@ contract Fuzz is BaseTest {
 
         testTokenB.approve(address(stream), amountB);
         stream.stake(amountB);
+        checkState();
 
         (
             uint256 lastCumulativeRewardPerToken,
@@ -160,33 +246,37 @@ contract Fuzz is BaseTest {
         uint32 nextDelay,
         uint112 amountB
     ) public {
+        writeBalanceOf(address(this), address(testTokenB), type(uint112).max);
         vm.warp(startTime);
-        amountB = uint112(bound(amountB, 1, type(uint112).max));
+        amountB = uint112(bound(amountB, 1, type(uint112).max - testTokenB.balanceOf(address(stream))));
         predelay = uint32(bound(predelay, 0, streamDuration - 1));
         nextDelay = uint32(bound(nextDelay, predelay, streamDuration - 1));
         vm.warp(startTime + predelay);
 
         testTokenB.approve(address(stream), amountB);
         stream.stake(amountB);
+        checkState();
 
         vm.warp(startTime + nextDelay);
-        stream.exit();
-
-        (
-            uint256 lastCumulativeRewardPerToken,
-            uint256 virtualBalance,
-            uint112 rewards,
-            uint112 tokens,
-            uint32 lastUpdate,
-            bool merkleAccess
-        ) = stream.tokenStreamForAccount(address(this));
-
-        assertEq(lastCumulativeRewardPerToken, 0);
-        assertEq(virtualBalance,               0);
-        assertEq(rewards,                      0);
-        assertEq(tokens,                       0);
-        assertEq(lastUpdate,                   startTime + nextDelay);
-        assertTrue(!merkleAccess);
+        if (lens.currDepositTokensNotYetStreamed(stream, address(this)) > 0) {
+            stream.exit();
+            (
+                uint256 lastCumulativeRewardPerToken,
+                uint256 virtualBalance,
+                uint112 rewards,
+                uint112 tokens,
+                uint32 lastUpdate,
+                bool merkleAccess
+            ) = stream.tokenStreamForAccount(address(this));
+            checkState();
+            assertEq(stream.totalVirtualBalance(), 0);
+            assertEq(lastCumulativeRewardPerToken, 0);
+            assertEq(virtualBalance,               0);
+            assertEq(rewards,                      0);
+            assertEq(tokens,                       0);
+            assertEq(lastUpdate,                   startTime + nextDelay);
+            assertTrue(!merkleAccess);
+        }
     }
 
     function dilutedBalance(uint112 amount) internal returns (uint256) {
@@ -203,28 +293,5 @@ contract Fuzz is BaseTest {
         uint256 diluted = uint256(streamDuration)* amount / timeRemaining;
 
         return amount < diluted ? diluted : amount;
-    }
-
-    function streamAccting(uint32 lu, uint112 amount) internal view returns (uint112) {
-        uint32 acctTimeDelta = uint32(block.timestamp - lu);
-
-        if (acctTimeDelta > 0) {
-            // some time has passed since this user last interacted
-            // update ts not yet streamed
-            // downcast is safe as guaranteed to be a % of uint112
-            if (amount > 0) {
-
-                // Safety:
-                //  1. acctTimeDelta * ts.tokens: acctTimeDelta is uint32, ts.tokens is uint112, cannot overflow uint256
-                //  2. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
-                //  3. streamAmt guaranteed to be a truncated (rounded down) % of ts.tokens
-                uint112 streamAmt = uint112(uint256(acctTimeDelta) * amount / (endStream - lu));
-                require(streamAmt != 0, "streamamt");
-                amount -= streamAmt;
-
-            }
-        }
-
-        return amount;
     }
 }

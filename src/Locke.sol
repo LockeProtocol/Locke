@@ -86,14 +86,14 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned, IStream {
 
     // == slot d ==
     // total virtual balance
-    uint256 private totalVirtualBalance;
+    uint256 public override totalVirtualBalance;
     // ============
 
     // == slot e ==
     // unstreamed deposit tokens
-    uint112 public unstreamed;
+    uint112 public override unstreamed;
     // total claimed deposit tokens (either by depositors or stream creator)
-    uint112 private redeemedDepositTokens;
+    uint112 public override redeemedDepositTokens;
     // whether stream creator has claimed deposit tokens
     bool private claimedDepositTokens;
     // ============
@@ -161,9 +161,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned, IStream {
                         //  1. acctTimeDelta * ts.tokens: acctTimeDelta is uint32, ts.tokens is uint112, cannot overflow uint256
                         //  2. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
                         //  3. streamAmt guaranteed to be a truncated (rounded down) % of ts.tokens
-                        uint112 streamAmt = uint112(uint256(acctTimeDelta) * ts.tokens / (endStream - ts.lastUpdate));
-                        if (streamAmt == 0) revert ZeroAmount();
-                        ts.tokens -= streamAmt;
+                        ts.tokens = uint112(uint256(endStream - timestamp) * ts.tokens / (endStream - ts.lastUpdate));
 
                     }
                     ts.lastUpdate = timestamp;
@@ -175,16 +173,18 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned, IStream {
                 uint256 tdelta = timestamp - lastUpdate;
                 // stream tokens over
                 if (tdelta > 0) {
-                    if (unstreamed == 0) {
+                    if (totalVirtualBalance == 0) {
                         // Safety:
                         //  1. Σ tdelta guaranteed to be < uint32.max because its upper bound is streamDuration which is a uint32
                         unaccruedSeconds += uint32(tdelta);
-                    } else {
+                    }
+                    if (unstreamed > 0) {
                         // Safety:
                         //  1. tdelta*unstreamed: uint32 * uint112 guaranteed to fit into uint256 so no overflow or zeroed bits
                         //  2. endStream - lastUpdate: lastUpdate guaranteed to be less than endStream in this codepath
                         //  3. tdelta*unstreamed/(endStream - lastUpdate): guaranteed to be less than unstreamed as its a % of unstreamed
-                        unstreamed -= uint112(tdelta * unstreamed / (endStream - lastUpdate));
+                        unstreamed = uint112(uint256(endStream - timestamp) * unstreamed / (endStream - lastUpdate));
+                        // unstreamed -= uint112(tdelta * unstreamed / (endStream - lastUpdate));
                     }
                 }
 
@@ -466,13 +466,14 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned, IStream {
 
         ts.tokens -= amount;
 
+
         uint256 virtualBal = dilutedBalance(amount);
         uint256 currVbal = ts.virtualBalance;
 
 
         // saturating subtraction - this is to account for
         // small rounding errors induced by small durations
-        if (currVbal < virtualBal) {
+        if (currVbal < virtualBal || ts.tokens == 0) {
             // if we zero out virtual balance, force the user to take
             // the remaining tokens back
             ts.virtualBalance = 0;
@@ -608,7 +609,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned, IStream {
 
             // if we havent updated since endStream, update lastupdate and unaccrued seconds
             uint32 tdelta = lastApplicableTime() - lastUpdate;
-            if (unstreamed == 0 && tdelta != 0) {
+            if (totalVirtualBalance == 0 && tdelta != 0) {
                 unaccruedSeconds += tdelta;
             }
 
@@ -637,7 +638,7 @@ contract Stream is LockeERC20, MinimallyExternallyGoverned, IStream {
         if (block.timestamp < endStream) revert StreamOngoing();
 
         uint32 tdelta = lastApplicableTime() - lastUpdate;
-        if (unstreamed == 0 && tdelta != 0) {
+        if (totalVirtualBalance == 0 && tdelta != 0) {
             unaccruedSeconds += tdelta;
             lastUpdate = lastApplicableTime();
         }

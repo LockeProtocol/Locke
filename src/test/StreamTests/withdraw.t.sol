@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
 import "../utils/LockeTest.sol";
@@ -18,6 +17,7 @@ contract TestWithdraw is BaseTest {
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenB), 1<<128);
+        writeBalanceOf(bob, address(testTokenB), 1<<128);
     }
 
     function test_withdrawZeroRevert() public {
@@ -34,17 +34,65 @@ contract TestWithdraw is BaseTest {
         stream.withdraw(105);
     }
 
+    function test_unstreamed() public {
+        writeBalanceOf(alice, address(testTokenB), 1<<128);
+        writeBalanceOf(bob, address(testTokenB), 1<<128);
+        startTime = uint32(block.timestamp + minStartDelay);
+        stream = defaultStreamFactory.createStream(
+            address(testTokenA),
+            address(testTokenB),
+            uint32(block.timestamp + minStartDelay),
+            8888,
+            maxDepositLockDuration,
+            0,
+            false
+            // false,
+            // bytes32(0)
+        );
+        vm.label(address(stream), "Stream");
+
+        vm.warp(startTime);
+        vm.startPrank(alice);
+        testTokenB.approve(address(stream), type(uint256).max);
+        stream.stake(1052);
+        vm.stopPrank();
+
+        checkState();
+
+        vm.warp(startTime + 99);
+        vm.startPrank(bob);
+        testTokenB.approve(address(stream), type(uint256).max);
+        stream.stake(6733);
+        vm.stopPrank();
+
+        checkState();
+
+        vm.warp(startTime + 136);
+        vm.prank(alice);
+        stream.exit();
+        vm.prank(bob);
+        stream.exit();
+
+        checkState();
+
+        assertEq(stream.unstreamed(), 1);
+        assertEq(stream.totalVirtualBalance(), 0);
+
+    }
+
     function test_withdraw() public {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
 
         stream.withdraw(100);
+        checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 0);
         (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 0);
-
+        checkState();
         {
             uint112 unstreamed = stream.unstreamed();
             assertEq(unstreamed, 0);
@@ -70,12 +118,14 @@ contract TestWithdraw is BaseTest {
     function test_withdrawTimePassed() public {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
 
         vm.warp(startTime + streamDuration / 2); // move to half done
         
 
 
         stream.withdraw(10);
+        checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 90);

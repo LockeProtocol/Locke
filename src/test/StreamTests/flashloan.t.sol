@@ -36,5 +36,6 @@ contract TestFlashloan is BaseTest {
         stream.flashloan(address(testTokenB), address(this), 1337, abi.encode(true, currBal));
 
         assertTrue(enteredFlashloan);
+        checkState();
     }
 }

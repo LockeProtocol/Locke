@@ -40,15 +40,18 @@ contract TestDeposit is BaseTest {
     function test_claimDepositLockRevert() public {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
 
         stream.maturity();
         vm.expectRevert(IStream.LockOngoing.selector);
         stream.claimDepositTokens(100);
+        checkState();
     }
 
     function test_claimDeposit() public {
         testTokenB.approve(address(stream), 105);
         stream.stake(105);
+        checkState();
 
         vm.warp(endDepositLock + 1);
 
@@ -56,6 +59,7 @@ contract TestDeposit is BaseTest {
 
 
         stream.claimDepositTokens(100);
+        checkState();
         
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 5);
@@ -68,5 +72,6 @@ contract TestDeposit is BaseTest {
 
 
         stream.claimDepositTokens(5);
+        checkState();
     }
 }

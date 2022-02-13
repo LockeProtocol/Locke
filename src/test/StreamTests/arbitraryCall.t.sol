@@ -30,10 +30,11 @@ contract TestArbitraryCall is BaseTest {
     function test_arbitraryCallIncCall() public {
         testTokenC.approve(address(stream), 100);
         stream.createIncentive(address(testTokenC), 100);
-        
+        checkState();
         vm.warp(endStream + 30 days + 1);
         uint256 preBal = testTokenC.balanceOf(address(this));
         stream.arbitraryCall(address(testTokenC), abi.encodeWithSignature("transfer(address,uint256)", address(this), 100));
+        checkState();
     }
 
     function test_arbitraryCallGovRevert() public {

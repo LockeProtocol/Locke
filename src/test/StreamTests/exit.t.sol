@@ -30,8 +30,9 @@ contract TestExit is BaseTest {
     function test_exit() public {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
-
+        checkState();
         stream.exit();
+        checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 0);
@@ -64,12 +65,14 @@ contract TestExit is BaseTest {
         vm.warp(startTime + 1);
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
 
-        vm.warp(startTime + streamDuration / 2 + 1); // move to half done
+        vm.warp(startTime + streamDuration / 2); // move to half done
         
 
 
         stream.exit();
+        checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 50);
@@ -93,7 +96,7 @@ contract TestExit is BaseTest {
             assertEq(virtualBalance,               0);
             assertEq(rewards,                      0);
             assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime + streamDuration / 2 + 1);
+            assertEq(lastUpdate,                   startTime + streamDuration / 2);
             assertTrue(!merkleAccess);
         }
     }

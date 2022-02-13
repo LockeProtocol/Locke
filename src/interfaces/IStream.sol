@@ -63,6 +63,8 @@ interface IStream is ILockeERC20 {
 	function feeParams() external view returns (uint16 _feePercent, bool _feeEnabled);
 	function incentives(address token) external view returns (uint112 amount, bool flag);
 	function getEarned(address who) external view returns (uint256 rewardEarned);
+	function totalVirtualBalance() external view returns (uint256);
+	function redeemedDepositTokens() external view returns (uint112);
 
 	// ======= State modifying Functions  ========
 	function arbitraryCall(address who, bytes calldata data) external;

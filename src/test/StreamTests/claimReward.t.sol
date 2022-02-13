@@ -31,9 +31,11 @@ contract TestClaimReward is BaseTest {
 
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
-        vm.warp(startTime + streamDuration/2 + 1);
+        checkState();
+        vm.warp(startTime + streamDuration/2);
 
         stream.claimReward();
+        checkState();
 
         {
             uint256 unstreamed = lens.currUnstreamed(stream);
@@ -49,13 +51,13 @@ contract TestClaimReward is BaseTest {
             ) = stream.tokenStreamForAccount(address(this));
             uint256 currTokens = lens.currDepositTokensNotYetStreamed(stream, address(this));
             // 1801 * 1000 * 10**18 // 3600 // 100
-            assertEq(lastCumulativeRewardPerToken, 5002777777777777777);
+            assertEq(lastCumulativeRewardPerToken, 5000000000000000000);
 
             assertEq(virtualBalance,               100);
             assertEq(rewards,                      0);
             assertEq(tokens,                       50);
             assertEq(currTokens,                   50);
-            assertEq(lastUpdate,                   startTime + streamDuration/2 + 1);
+            assertEq(lastUpdate,                   startTime + streamDuration/2);
             assertTrue(!merkleAccess);
             assertEq(testTokenA.balanceOf(address(this)), uint256(1<<128) - 500);
         }
@@ -65,14 +67,18 @@ contract TestClaimReward is BaseTest {
         vm.warp(startTime - 1);
         testTokenA.approve(address(stream), 1000);
         stream.fundStream(1000);
+        checkState();
 
         vm.warp(startTime + streamDuration/2 + 1);
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
         vm.warp(startTime + streamDuration);
 
         stream.claimReward();
+        checkState();
         stream.creatorClaim(address(this));
+        checkState();
 
         {
             uint256 unstreamed = lens.currUnstreamed(stream);
@@ -103,21 +109,26 @@ contract TestClaimReward is BaseTest {
         vm.warp(startTime - 1);
         testTokenA.approve(address(stream), 1000);
         stream.fundStream(1000);
+        checkState();
 
         
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
         vm.warp(startTime + streamDuration/4 + 1);
         stream.exit();
+        checkState();
 
         vm.warp(startTime + streamDuration*2/4 + 1);
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
         vm.warp(startTime + streamDuration);
 
         stream.claimReward();
-        stream.rewardPerToken();
+        checkState();
         stream.creatorClaim(address(this));
+        checkState();
 
         {
             uint256 unstreamed = lens.currUnstreamed(stream);
@@ -147,13 +158,17 @@ contract TestClaimReward is BaseTest {
     function test_claimEnd() public {
         testTokenA.approve(address(stream), 1000);
         stream.fundStream(1000);
+        checkState();
 
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
         vm.warp(startTime + streamDuration);
 
         stream.claimReward();
+        checkState();
         stream.creatorClaim(address(this));
+        checkState();
         {
             uint256 unstreamed = lens.currUnstreamed(stream);
             assertEq(unstreamed, 0);
@@ -181,13 +196,17 @@ contract TestClaimReward is BaseTest {
     function test_claimZeroRevert() public {
         testTokenA.approve(address(stream), 1000);
         stream.fundStream(1000);
+        checkState();
 
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
         vm.warp(startTime + streamDuration);
 
         stream.claimReward();
+        checkState();
         stream.creatorClaim(address(this));
+        checkState();
 
         {
             uint256 unstreamed = lens.currUnstreamed(stream);
@@ -214,5 +233,6 @@ contract TestClaimReward is BaseTest {
 
         vm.expectRevert(IStream.ZeroAmount.selector);
         stream.claimReward();
+        checkState();
     }
 }

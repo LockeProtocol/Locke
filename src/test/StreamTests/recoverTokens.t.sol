@@ -32,6 +32,7 @@ contract TestRecovery is BaseTest {
         vm.warp(endStream);
         stream.recoverTokens(address(testTokenA), address(this));
         assertEq(testTokenA.balanceOf(address(this)), 1<<128);
+        checkState();
     }
 
     function test_recoverRewardMinusRedeemed() public {
@@ -40,13 +41,16 @@ contract TestRecovery is BaseTest {
 
         testTokenB.approve(address(stream), 1);
         stream.stake(1);
+        checkState();
 
         testTokenA.transfer(address(stream), 100);
         vm.warp(endStream);
 
         stream.claimReward();
+        checkState();
 
         stream.recoverTokens(address(testTokenA), address(this));
         assertEq(testTokenA.balanceOf(address(this)), 1<<128);
+        checkState();
     }
 }

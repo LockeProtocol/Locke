@@ -27,20 +27,20 @@ contract TestStake is BaseTest {
     function test_multiUserStakeRewards() public {
         testTokenA.approve(address(stream), type(uint256).max);
         stream.fundStream(1000);
-
+        checkState();
         uint256 alicePreBal = testTokenA.balanceOf(alice);
         vm.startPrank(alice);
         testTokenB.approve(address(stream), 100);
 
         stream.stake(100);
-                vm.stopPrank();
+        vm.stopPrank();
+        checkState();
         
         uint256 bobPreBal = testTokenA.balanceOf(bob);
         vm.startPrank(bob);
         testTokenB.approve(address(stream), 100);
-
-
         stream.stake(100);
+        checkState();
         vm.stopPrank();
 
         vm.warp(startTime + minStreamDuration + 1); // warp to end of stream
@@ -49,13 +49,15 @@ contract TestStake is BaseTest {
 
 
         stream.claimReward();
-                assertEq(testTokenA.balanceOf(alice), alicePreBal + 500);
+        assertEq(testTokenA.balanceOf(alice), alicePreBal + 500);
+        checkState();
 
         vm.prank(bob);
 
 
         stream.claimReward();
         assertEq(testTokenA.balanceOf(bob), bobPreBal + 500);
+        checkState();
         // we leave dust :shrug:
     }
 
@@ -68,6 +70,7 @@ contract TestStake is BaseTest {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
         vm.stopPrank();
+        checkState();
 
         vm.warp(startTime + minStreamDuration / 2); // move to half done
         
@@ -76,16 +79,19 @@ contract TestStake is BaseTest {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
         vm.stopPrank();
+        checkState();
 
         vm.warp(startTime + minStreamDuration + 1); // warp to end of stream
 
         vm.prank(alice);
         stream.claimReward();
         assertEq(testTokenA.balanceOf(alice), alicePreBal + 666);
+        checkState();
 
         vm.prank(bob);
         stream.claimReward();
         assertEq(testTokenA.balanceOf(bob), bobPreBal + 333);
+        checkState();
         // we leave dust :shrug:
     }
 
@@ -98,6 +104,7 @@ contract TestStake is BaseTest {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
         vm.stopPrank();
+        checkState();
 
 
         vm.warp(startTime + minStreamDuration / 2); // move to half done
@@ -107,12 +114,14 @@ contract TestStake is BaseTest {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
         vm.stopPrank();
+        checkState();
 
         vm.warp(startTime + minStreamDuration / 2 + minStreamDuration / 10);
 
         vm.prank(alice);
 
         stream.exit();
+        checkState();
         
         vm.warp(startTime + minStreamDuration + 1); // warp to end of stream
 
@@ -120,10 +129,12 @@ contract TestStake is BaseTest {
         vm.prank(alice);
         stream.claimReward();
         assertEq(testTokenA.balanceOf(alice), alicePreBal + 533);
+        checkState();
 
         vm.prank(bob);
         stream.claimReward();
         assertEq(testTokenA.balanceOf(bob), bobPreBal + 466);
+        checkState();
     }
 
     function test_stakeAmtRevert() public {
@@ -154,6 +165,7 @@ contract TestStake is BaseTest {
         assertEq(asLERC.balanceOf(address(this)), 100);
         (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 100);
+        checkState();
 
         {
             uint112 unstreamed = stream.unstreamed();
@@ -178,11 +190,12 @@ contract TestStake is BaseTest {
 
         // move forward 1/10th of sd
         // round up to next second
-        vm.warp(startTime + minStreamDuration / 10 + 1);
+        vm.warp(startTime + minStreamDuration / 10);
         uint256 rewardPerToken = stream.rewardPerToken();
 
 
         stream.stake(1);
+        checkState();
         
         {
             uint112 unstreamed = stream.unstreamed();
@@ -207,14 +220,14 @@ contract TestStake is BaseTest {
         }
 
         // move forward again
-        vm.warp(startTime + (2*minStreamDuration) / 10 + 1);
+        vm.warp(startTime + (2*minStreamDuration) / 10);
         rewardPerToken = stream.rewardPerToken();
         stream.stake(1);
-
+        checkState();
 
         {
             uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 82);
+            assertEq(unstreamed, 81);
 
             (
                 uint256 lastCumulativeRewardPerToken,
@@ -229,7 +242,7 @@ contract TestStake is BaseTest {
             assertEq(lastCumulativeRewardPerToken, rewardPerToken);
             assertEq(virtualBalance,               102);
             assertEq(rewards,                      0);
-            assertEq(tokens,                       82);
+            assertEq(tokens,                       81);
             assertEq(lastUpdate,                   block.timestamp);
             assertTrue(!merkleAccess);
         }
@@ -269,5 +282,51 @@ contract TestStake is BaseTest {
 
 
         indefinite.stake(100);
+    }
+
+    function test_quickDepositAndWithdraw() public {
+        uint StartBalanceA = testTokenA.balanceOf(address(alice));
+        uint112 stakeAmount = 10_000;
+        
+        testTokenA.approve(address(stream), type(uint256).max);
+        stream.fundStream(1_000_000_000);
+
+        // wait till the stream starts
+        vm.warp(block.timestamp + 16);
+
+        // just interact with contract to fill "lastUpdate" and "ts.lastUpdate" 
+        // without changing balances inside of Streaming contract
+        vm.startPrank(alice);
+        testTokenB.approve(address(stream), type(uint256).max);
+        stream.stake(stakeAmount);
+        stream.withdraw(stakeAmount);
+        checkState();
+
+        ///// ATTACK COMES HERE
+        // stake
+        stream.stake(stakeAmount);
+        checkState();
+
+        // wait a block
+        vm.warp(block.timestamp + 16);
+
+        // withdraw soon thereafter
+        stream.withdraw(stakeAmount);
+        checkState();
+
+        // finish the stream
+        vm.warp(block.timestamp + maxDepositLockDuration);
+
+        // get reward
+        assertEq(stream.getEarned(alice), 0);
+ 
+        uint EndBalanceA = testTokenA.balanceOf(address(alice));
+        uint EndBalanceB = testTokenB.balanceOf(address(alice));
+
+        assertEq(EndBalanceB, 1<<128);
+
+        assertEq(StartBalanceA, 0);
+        assertEq(StartBalanceA, EndBalanceA);
+        emit log_named_uint("alice gained", EndBalanceA);
     }
 }

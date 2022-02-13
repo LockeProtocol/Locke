@@ -29,11 +29,13 @@ contract TestCreatorClaimTokens is BaseTest {
         vm.warp(startTime + streamDuration/2);
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
 
         vm.warp(endDepositLock + 1);
         stream.claimReward();
         stream.creatorClaim(address(this));
         assertEq(testTokenA.balanceOf(address(stream)), 0);
+        checkState();
     }
 
     function test_creatorClaimTokensDoubleClaimRevert() public {
