@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "../utils/LockeTest.sol";
 import "../../interfaces/ILockeERC20.sol";
@@ -10,15 +10,11 @@ contract TestExit is BaseTest {
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) =
+            stream.streamParams();
         streamDuration = endStream - startTime;
 
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
+        writeBalanceOf(address(this), address(testTokenB), 1 << 128);
     }
 
     function test_exitZeroRevert() public {
@@ -35,7 +31,10 @@ contract TestExit is BaseTest {
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 0);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
+        (
+            uint112 rewardTokenAmount,
+            uint112 depositTokenAmount
+        ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 0);
 
         {
@@ -52,10 +51,10 @@ contract TestExit is BaseTest {
             ) = stream.tokenStreamForAccount(address(this));
 
             assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               0);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime);
+            assertEq(virtualBalance, 0);
+            assertEq(rewards, 0);
+            assertEq(tokens, 0);
+            assertEq(lastUpdate, startTime);
             assertTrue(!merkleAccess);
         }
     }
@@ -66,14 +65,15 @@ contract TestExit is BaseTest {
         stream.stake(100);
 
         vm.warp(startTime + streamDuration / 2 + 1); // move to half done
-        
-
 
         stream.exit();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 50);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
+        (
+            uint112 rewardTokenAmount,
+            uint112 depositTokenAmount
+        ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 50);
 
         {
@@ -90,10 +90,10 @@ contract TestExit is BaseTest {
             ) = stream.tokenStreamForAccount(address(this));
 
             assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               0);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime + streamDuration / 2 + 1);
+            assertEq(virtualBalance, 0);
+            assertEq(rewards, 0);
+            assertEq(tokens, 0);
+            assertEq(lastUpdate, startTime + streamDuration / 2 + 1);
             assertTrue(!merkleAccess);
         }
     }
@@ -103,14 +103,15 @@ contract TestExit is BaseTest {
         indefinite.stake(100);
 
         vm.warp(startTime + streamDuration / 2); // move to half done
-        
-
 
         indefinite.exit();
 
         ILockeERC20 asLERC = ILockeERC20(indefinite);
         assertEq(asLERC.balanceOf(address(this)), 0);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = indefinite.tokenAmounts();
+        (
+            uint112 rewardTokenAmount,
+            uint112 depositTokenAmount
+        ) = indefinite.tokenAmounts();
         assertEq(depositTokenAmount, 50);
 
         {
@@ -127,10 +128,10 @@ contract TestExit is BaseTest {
             ) = indefinite.tokenStreamForAccount(address(this));
 
             assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               0);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime + streamDuration / 2);
+            assertEq(virtualBalance, 0);
+            assertEq(rewards, 0);
+            assertEq(tokens, 0);
+            assertEq(lastUpdate, startTime + streamDuration / 2);
             assertTrue(!merkleAccess);
         }
     }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "../utils/LockeTest.sol";
 import "../../interfaces/ILockeERC20.sol";
@@ -9,19 +9,15 @@ contract TestStake is BaseTest {
         tokenAB();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) =
+            stream.streamParams();
         streamDuration = endStream - startTime;
 
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-        writeBalanceOf(address(this), address(testTokenA), 1<<128);
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
-        writeBalanceOf(alice, address(testTokenB), 1<<128);
-        writeBalanceOf(bob, address(testTokenB), 1<<128);
+        writeBalanceOf(address(this), address(testTokenA), 1 << 128);
+        writeBalanceOf(address(this), address(testTokenB), 1 << 128);
+        writeBalanceOf(alice, address(testTokenB), 1 << 128);
+        writeBalanceOf(bob, address(testTokenB), 1 << 128);
     }
 
     function test_multiUserStakeRewards() public {
@@ -33,12 +29,11 @@ contract TestStake is BaseTest {
         testTokenB.approve(address(stream), 100);
 
         stream.stake(100);
-                vm.stopPrank();
-        
+        vm.stopPrank();
+
         uint256 bobPreBal = testTokenA.balanceOf(bob);
         vm.startPrank(bob);
         testTokenB.approve(address(stream), 100);
-
 
         stream.stake(100);
         vm.stopPrank();
@@ -47,16 +42,13 @@ contract TestStake is BaseTest {
 
         vm.prank(alice);
 
-
         stream.claimReward();
-                assertEq(testTokenA.balanceOf(alice), alicePreBal + 500);
+        assertEq(testTokenA.balanceOf(alice), alicePreBal + 500);
 
         vm.prank(bob);
 
-
         stream.claimReward();
-        assertEq(testTokenA.balanceOf(bob), bobPreBal + 500);
-        // we leave dust :shrug:
+        assertEq(testTokenA.balanceOf(bob), bobPreBal + 500); // we leave dust :shrug:
     }
 
     function test_multiUserStakeRewardsHalf() public {
@@ -70,7 +62,7 @@ contract TestStake is BaseTest {
         vm.stopPrank();
 
         vm.warp(startTime + minStreamDuration / 2); // move to half done
-        
+
         uint256 bobPreBal = testTokenA.balanceOf(bob);
         vm.startPrank(bob);
         testTokenB.approve(address(stream), 100);
@@ -85,8 +77,7 @@ contract TestStake is BaseTest {
 
         vm.prank(bob);
         stream.claimReward();
-        assertEq(testTokenA.balanceOf(bob), bobPreBal + 333);
-        // we leave dust :shrug:
+        assertEq(testTokenA.balanceOf(bob), bobPreBal + 333); // we leave dust :shrug:
     }
 
     function test_multiUserStakeRewardsWithWithdraw() public {
@@ -99,9 +90,8 @@ contract TestStake is BaseTest {
         stream.stake(100);
         vm.stopPrank();
 
-
         vm.warp(startTime + minStreamDuration / 2); // move to half done
-        
+
         uint256 bobPreBal = testTokenA.balanceOf(bob);
         vm.startPrank(bob);
         testTokenB.approve(address(stream), 100);
@@ -113,9 +103,8 @@ contract TestStake is BaseTest {
         vm.prank(alice);
 
         stream.exit();
-        
-        vm.warp(startTime + minStreamDuration + 1); // warp to end of stream
 
+        vm.warp(startTime + minStreamDuration + 1); // warp to end of stream
 
         vm.prank(alice);
         stream.claimReward();
@@ -139,8 +128,8 @@ contract TestStake is BaseTest {
 
     function test_stakeERCRevert() public {
         vm.warp(block.timestamp + minStartDelay);
-        writeBalanceOf(address(stream), address(testTokenB), 2**112 + 1);
-        
+        writeBalanceOf(address(stream), address(testTokenB), 2 ** 112 + 1);
+
         testTokenB.approve(address(stream), 100);
         vm.expectRevert(IStream.BadERC20Interaction.selector);
         stream.stake(100);
@@ -152,7 +141,10 @@ contract TestStake is BaseTest {
         stream.stake(100);
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 100);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
+        (
+            uint112 rewardTokenAmount,
+            uint112 depositTokenAmount
+        ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 100);
 
         {
@@ -169,10 +161,10 @@ contract TestStake is BaseTest {
             ) = stream.tokenStreamForAccount(address(this));
             checkState();
             assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               100);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       100);
-            assertEq(lastUpdate,                   startTime);
+            assertEq(virtualBalance, 100);
+            assertEq(rewards, 0);
+            assertEq(tokens, 100);
+            assertEq(lastUpdate, startTime);
             assertTrue(!merkleAccess);
         }
 
@@ -181,9 +173,8 @@ contract TestStake is BaseTest {
         vm.warp(startTime + minStreamDuration / 10 + 1);
         uint256 rewardPerToken = stream.rewardPerToken();
 
-
         stream.stake(1);
-        
+
         {
             uint112 unstreamed = stream.unstreamed();
             assertEq(unstreamed, 91);
@@ -199,18 +190,17 @@ contract TestStake is BaseTest {
 
             checkState();
             assertEq(lastCumulativeRewardPerToken, rewardPerToken);
-            assertEq(virtualBalance,               101);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       91);
-            assertEq(lastUpdate,                   block.timestamp);
+            assertEq(virtualBalance, 101);
+            assertEq(rewards, 0);
+            assertEq(tokens, 91);
+            assertEq(lastUpdate, block.timestamp);
             assertTrue(!merkleAccess);
         }
 
         // move forward again
-        vm.warp(startTime + (2*minStreamDuration) / 10 + 1);
+        vm.warp(startTime + (2 * minStreamDuration) / 10 + 1);
         rewardPerToken = stream.rewardPerToken();
         stream.stake(1);
-
 
         {
             uint112 unstreamed = stream.unstreamed();
@@ -227,10 +217,10 @@ contract TestStake is BaseTest {
 
             checkState();
             assertEq(lastCumulativeRewardPerToken, rewardPerToken);
-            assertEq(virtualBalance,               102);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       82);
-            assertEq(lastUpdate,                   block.timestamp);
+            assertEq(virtualBalance, 102);
+            assertEq(rewards, 0);
+            assertEq(tokens, 82);
+            assertEq(lastUpdate, block.timestamp);
             assertTrue(!merkleAccess);
         }
     }
@@ -243,7 +233,10 @@ contract TestStake is BaseTest {
         // no tokens wen indefinite
         assertEq(asLERC.balanceOf(address(this)), 0);
 
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = indefinite.tokenAmounts();
+        (
+            uint112 rewardTokenAmount,
+            uint112 depositTokenAmount
+        ) = indefinite.tokenAmounts();
         assertEq(depositTokenAmount, 100);
         {
             uint112 unstreamed = indefinite.unstreamed();
@@ -259,14 +252,12 @@ contract TestStake is BaseTest {
             ) = indefinite.tokenStreamForAccount(address(this));
 
             assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               100);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       100);
-            assertEq(lastUpdate,                   startTime);
+            assertEq(virtualBalance, 100);
+            assertEq(rewards, 0);
+            assertEq(tokens, 100);
+            assertEq(lastUpdate, startTime);
             assertTrue(!merkleAccess);
         }
-
-
 
         indefinite.stake(100);
     }

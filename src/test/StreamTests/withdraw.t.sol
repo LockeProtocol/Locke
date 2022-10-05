@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "../utils/LockeTest.sol";
 import "../../interfaces/ILockeERC20.sol";
@@ -9,15 +9,11 @@ contract TestWithdraw is BaseTest {
         tokenAB();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) =
+            stream.streamParams();
         streamDuration = endStream - startTime;
 
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
+        writeBalanceOf(address(this), address(testTokenB), 1 << 128);
     }
 
     function test_withdrawZeroRevert() public {
@@ -42,7 +38,10 @@ contract TestWithdraw is BaseTest {
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 0);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
+        (
+            uint112 rewardTokenAmount,
+            uint112 depositTokenAmount
+        ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 0);
 
         {
@@ -59,10 +58,10 @@ contract TestWithdraw is BaseTest {
             ) = stream.tokenStreamForAccount(address(this));
 
             assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               0);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       0);
-            assertEq(lastUpdate,                   startTime);
+            assertEq(virtualBalance, 0);
+            assertEq(rewards, 0);
+            assertEq(tokens, 0);
+            assertEq(lastUpdate, startTime);
             assertTrue(!merkleAccess);
         }
     }
@@ -72,19 +71,20 @@ contract TestWithdraw is BaseTest {
         stream.stake(100);
 
         vm.warp(startTime + streamDuration / 2); // move to half done
-        
-
 
         stream.withdraw(10);
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 90);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount, uint112 rewardTokenFeeAmount, ) = stream.tokenAmounts();
+        (
+            uint112 rewardTokenAmount,
+            uint112 depositTokenAmount
+        ) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 90);
 
         {
             uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 100*50/100-10);
+            assertEq(unstreamed, 100 * 50 / 100 - 10);
 
             (
                 uint256 lastCumulativeRewardPerToken,
@@ -96,10 +96,10 @@ contract TestWithdraw is BaseTest {
             ) = stream.tokenStreamForAccount(address(this));
 
             assertEq(lastCumulativeRewardPerToken, 0);
-            assertEq(virtualBalance,               80);
-            assertEq(rewards,                      0);
-            assertEq(tokens,                       40);
-            assertEq(lastUpdate,                   startTime + streamDuration / 2);
+            assertEq(virtualBalance, 80);
+            assertEq(rewards, 0);
+            assertEq(tokens, 40);
+            assertEq(lastUpdate, startTime + streamDuration / 2);
             assertTrue(!merkleAccess);
         }
     }

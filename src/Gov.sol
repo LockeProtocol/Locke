@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "./interfaces/IMinimallyGoverned.sol";
 
@@ -12,7 +12,7 @@ contract MinimallyGoverned is IMinimallyGoverned {
     }
 
     /// Update pending governor
-    function setPendingGov(address newPendingGov) governed external override {
+    function setPendingGov(address newPendingGov) external override governed {
         address old = pendingGov;
         pendingGov = newPendingGov;
         emit NewPendingGov(old, newPendingGov);
@@ -27,7 +27,7 @@ contract MinimallyGoverned is IMinimallyGoverned {
     }
 
     /// Remove governor
-    function __abdicate() governed external override {
+    function __abdicate() external override governed {
         address old = gov;
         gov = address(0);
         emit NewGov(old, address(0));
@@ -35,7 +35,7 @@ contract MinimallyGoverned is IMinimallyGoverned {
 
     // ====== Modifiers =======
     /// Governed function
-    modifier governed {
+    modifier governed() {
         if (msg.sender != gov) revert NotGov();
         _;
     }
@@ -52,7 +52,7 @@ abstract contract MinimallyExternallyGoverned {
 
     // ====== Modifiers =======
     /// Governed function
-    modifier externallyGoverned {
+    modifier externallyGoverned() {
         if (msg.sender != gov.gov()) revert NotGov();
         _;
     }

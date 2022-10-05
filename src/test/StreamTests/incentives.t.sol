@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "../utils/LockeTest.sol";
 
@@ -9,7 +9,7 @@ contract TestIncentive is BaseTest {
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
 
-        writeBalanceOf(address(this), address(testTokenC), 1<<128);
+        writeBalanceOf(address(this), address(testTokenC), 1 << 128);
     }
 
     function test_createIncentiveWithZeroAmt() public {
@@ -26,7 +26,7 @@ contract TestIncentive is BaseTest {
         testTokenC.approve(address(stream), 100);
 
         stream.createIncentive(address(testTokenC), 100);
-                (uint112 amt, bool flag) = stream.incentives(address(testTokenC));
+        (uint112 amt, bool flag) = stream.incentives(address(testTokenC));
         assertTrue(flag);
         assertEq(amt, 100);
     }
@@ -63,7 +63,7 @@ contract TestIncentive is BaseTest {
         uint256 preBal = testTokenC.balanceOf(address(this));
 
         stream.claimIncentive(address(testTokenC));
-        
+
         assertEq(testTokenC.balanceOf(address(this)), preBal + 100);
     }
 }

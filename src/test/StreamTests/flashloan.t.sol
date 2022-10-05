@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "../utils/LockeTest.sol";
 
@@ -9,21 +9,12 @@ contract TestFlashloan is BaseTest {
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
 
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
+        writeBalanceOf(address(this), address(testTokenB), 1 << 128);
     }
 
     function test_flashloanTokenRevert() public {
         vm.expectRevert(IStream.BadERC20Interaction.selector);
         stream.flashloan(address(123), address(0), 100, "");
-    }
-
-    function test_flashloanFeeRevert() public {
-        testTokenB.approve(address(stream), 1337);
-        stream.stake(1337);
-
-        uint256 currBal = testTokenB.balanceOf(address(this));
-        vm.expectRevert(IStream.BalanceError.selector);
-        stream.flashloan(address(testTokenB), address(this), 1337, abi.encode(false, currBal));
     }
 
     function test_flashloan() public {
@@ -32,8 +23,9 @@ contract TestFlashloan is BaseTest {
 
         uint256 currBal = testTokenB.balanceOf(address(this));
 
-
-        stream.flashloan(address(testTokenB), address(this), 1337, abi.encode(true, currBal));
+        stream.flashloan(
+            address(testTokenB), address(this), 1337, abi.encode(true, currBal)
+        );
 
         assertTrue(enteredFlashloan);
     }

@@ -8,12 +8,8 @@ contract Fuzz is BaseTest {
         tokenABC();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) =
+            stream.streamParams();
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenA), type(uint112).max);
@@ -24,11 +20,11 @@ contract Fuzz is BaseTest {
         writeBalanceOf(bob, address(testTokenB), type(uint96).max);
     }
 
-    function bound(
-        uint256 x,
-        uint256 min,
-        uint256 max
-    ) internal pure returns (uint256 result) {
+    function bound(uint256 x, uint256 min, uint256 max)
+        internal
+        pure
+        returns (uint256 result)
+    {
         require(max >= min, "MAX_LESS_THAN_MIN");
 
         uint256 size = max - min;
@@ -45,39 +41,82 @@ contract Fuzz is BaseTest {
         if (max == type(uint256).max && x != 0) result++;
     }
 
-    function randomAction(address who, uint112 amount, uint112 rewards, uint112 tokens) internal {
+    function randomAction(
+        address who,
+        uint112 amount,
+        uint112 rewards,
+        uint112 tokens
+    )
+        internal
+    {
         if (block.timestamp % 5 == 0 && block.timestamp < endStream) {
             vm.startPrank(who);
             testTokenB.approve(address(stream), amount);
             stream.stake(amount);
             vm.stopPrank();
-        } else if (block.timestamp % 5 == 1 && tokens > 0 && block.timestamp < endStream) {
+        } else if (
+            block.timestamp % 5 == 1 && tokens > 0 && block.timestamp < endStream
+        ) {
             vm.prank(who);
             stream.exit();
-        } else if (block.timestamp % 5 == 2 && rewards > 0 && block.timestamp > endRewardLock) {
+        } else if (
+            block.timestamp
+                % 5
+                == 2
+                && rewards
+                > 0
+                && block.timestamp
+                > endRewardLock
+        ) {
             vm.prank(who);
             stream.claimReward();
-        } else if (block.timestamp % 5 == 3 && tokens > 0 && block.timestamp < endStream) {
-            uint112 amount = uint112(bound(amount, 1, lens.currDepositTokensNotYetStreamed(stream, who)));
+        } else if (
+            block.timestamp % 5 == 3 && tokens > 0 && block.timestamp < endStream
+        ) {
+            uint112 amount = uint112(
+                bound(amount, 1, lens.currDepositTokensNotYetStreamed(stream, who))
+            );
             vm.prank(who);
             stream.withdraw(amount);
-        } else if (block.timestamp % 5 == 4 && tokens > 0 && block.timestamp > endDepositLock) {
-            uint256 max = bound(LockeERC20(address(stream)).balanceOf(who), 0, type(uint256).max);
+        } else if (
+            block.timestamp
+                % 5
+                == 4
+                && tokens
+                > 0
+                && block.timestamp
+                > endDepositLock
+        ) {
+            uint256 max = bound(
+                LockeERC20(address(stream)).balanceOf(who), 0, type(uint256).max
+            );
             vm.prank(who);
             stream.claimDepositTokens(uint112(bound(amount, 1, max)));
         }
     }
 
-    function willTakeAction(uint256 timestamp, address who, uint112 rewards, uint112 tokens) internal returns (bool) {
+    function willTakeAction(
+        uint256 timestamp,
+        address who,
+        uint112 rewards,
+        uint112 tokens
+    )
+        internal
+        returns (bool)
+    {
         if (timestamp % 5 == 0 && timestamp < endStream) {
             return true;
         } else if (timestamp % 5 == 1 && tokens > 0 && timestamp < endStream) {
             return true;
-        } else if (timestamp % 5 == 2 && rewards > 0 && timestamp > endRewardLock) {
+        } else if (
+            timestamp % 5 == 2 && rewards > 0 && timestamp > endRewardLock
+        ) {
             return true;
         } else if (timestamp % 5 == 3 && tokens > 0 && timestamp < endStream) {
             return true;
-        } else if (timestamp % 5 == 4 && tokens > 0 && timestamp > endDepositLock) {
+        } else if (
+            timestamp % 5 == 4 && tokens > 0 && timestamp > endDepositLock
+        ) {
             return true;
         }
         return false;
@@ -89,7 +128,9 @@ contract Fuzz is BaseTest {
         uint256 fudgeAmtA,
         uint256 fudgeAmtB,
         uint256 fudgeAmtC
-    ) public {
+    )
+        public
+    {
         writeBalanceOf(address(this), address(testTokenA), type(uint256).max);
         writeBalanceOf(address(this), address(testTokenB), type(uint256).max);
         amountA = uint112(bound(amountA, 1, type(uint112).max));
@@ -116,15 +157,12 @@ contract Fuzz is BaseTest {
         stream.recoverTokens(address(testTokenC), address(this));
 
         // leave less than 0.01 tokens from rounding
-        assertTrue(testTokenA.balanceOf(address(stream)) < 10**16);
+        assertTrue(testTokenA.balanceOf(address(stream)) < 10 ** 16);
         assertEq(testTokenB.balanceOf(address(this)), type(uint256).max);
         assertEq(testTokenC.balanceOf(address(this)), type(uint256).max);
     }
 
-    function testFuzz_stake(
-        uint32 predelay,
-        uint112 amountB
-    ) public {
+    function testFuzz_stake(uint32 predelay, uint112 amountB) public {
         amountB = uint112(bound(amountB, 1, type(uint112).max));
         predelay = uint32(bound(predelay, 0, streamDuration - 1));
         vm.warp(startTime + predelay);
@@ -148,18 +186,16 @@ contract Fuzz is BaseTest {
         ) = stream.tokenStreamForAccount(address(this));
 
         assertEq(lastCumulativeRewardPerToken, 0);
-        assertEq(virtualBalance,               dilutedBal);
-        assertEq(rewards,                      0);
-        assertEq(tokens,                       amountB);
-        assertEq(lastUpdate,                   startTime + predelay);
+        assertEq(virtualBalance, dilutedBal);
+        assertEq(rewards, 0);
+        assertEq(tokens, amountB);
+        assertEq(lastUpdate, startTime + predelay);
         assertTrue(!merkleAccess);
     }
 
-    function testFuzz_exit(
-        uint32 predelay,
-        uint32 nextDelay,
-        uint112 amountB
-    ) public {
+    function testFuzz_exit(uint32 predelay, uint32 nextDelay, uint112 amountB)
+        public
+    {
         vm.warp(startTime);
         amountB = uint112(bound(amountB, 1, type(uint112).max));
         predelay = uint32(bound(predelay, 0, streamDuration - 1));
@@ -182,10 +218,10 @@ contract Fuzz is BaseTest {
         ) = stream.tokenStreamForAccount(address(this));
 
         assertEq(lastCumulativeRewardPerToken, 0);
-        assertEq(virtualBalance,               0);
-        assertEq(rewards,                      0);
-        assertEq(tokens,                       0);
-        assertEq(lastUpdate,                   startTime + nextDelay);
+        assertEq(virtualBalance, 0);
+        assertEq(rewards, 0);
+        assertEq(tokens, 0);
+        assertEq(lastUpdate, startTime + nextDelay);
         assertTrue(!merkleAccess);
     }
 
@@ -200,12 +236,16 @@ contract Fuzz is BaseTest {
 
         emit log_named_uint("time remaining", timeRemaining);
 
-        uint256 diluted = uint256(streamDuration)* amount / timeRemaining;
+        uint256 diluted = uint256(streamDuration) * amount / timeRemaining;
 
         return amount < diluted ? diluted : amount;
     }
 
-    function streamAccting(uint32 lu, uint112 amount) internal view returns (uint112) {
+    function streamAccting(uint32 lu, uint112 amount)
+        internal
+        view
+        returns (uint112)
+    {
         uint32 acctTimeDelta = uint32(block.timestamp - lu);
 
         if (acctTimeDelta > 0) {
@@ -213,15 +253,14 @@ contract Fuzz is BaseTest {
             // update ts not yet streamed
             // downcast is safe as guaranteed to be a % of uint112
             if (amount > 0) {
-
                 // Safety:
                 //  1. acctTimeDelta * ts.tokens: acctTimeDelta is uint32, ts.tokens is uint112, cannot overflow uint256
                 //  2. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
                 //  3. streamAmt guaranteed to be a truncated (rounded down) % of ts.tokens
-                uint112 streamAmt = uint112(uint256(acctTimeDelta) * amount / (endStream - lu));
+                uint112 streamAmt =
+                    uint112(uint256(acctTimeDelta) * amount / (endStream - lu));
                 require(streamAmt != 0, "streamamt");
                 amount -= streamAmt;
-
             }
         }
 

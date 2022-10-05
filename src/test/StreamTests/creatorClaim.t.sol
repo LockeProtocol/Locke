@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "../utils/LockeTest.sol";
 
@@ -10,23 +10,19 @@ contract TestCreatorClaimTokens is BaseTest {
         stream = streamSetup(block.timestamp + minStartDelay);
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
 
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) =
+            stream.streamParams();
         streamDuration = endStream - startTime;
 
-        writeBalanceOf(address(this), address(testTokenA), 1<<128);
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
+        writeBalanceOf(address(this), address(testTokenA), 1 << 128);
+        writeBalanceOf(address(this), address(testTokenB), 1 << 128);
     }
 
     function test_creatorClaimTokensLeftovers() public {
         testTokenA.approve(address(stream), 1000);
         stream.fundStream(1000);
 
-        vm.warp(startTime + streamDuration/2);
+        vm.warp(startTime + streamDuration / 2);
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
 
@@ -75,13 +71,18 @@ contract TestCreatorClaimTokens is BaseTest {
         uint256 preBal = testTokenB.balanceOf(address(this));
 
         indefinite.creatorClaim(address(this));
-        
+
         assertEq(testTokenB.balanceOf(address(this)), preBal + 100);
 
-        uint256 redeemed = (uint256(vm.load(address(indefinite), bytes32(uint256(10)))) << 32) >> (112 + 32);
+        uint256 redeemed =
+            (uint256(vm.load(address(indefinite), bytes32(uint256(9)))) << 32)
+            >> (112 + 32);
         assertEq(redeemed, 100);
 
-        uint8 claimed = uint8(uint256(vm.load(address(indefinite), bytes32(uint256(10)))) >> (112 + 112));
+        uint8 claimed = uint8(
+            uint256(vm.load(address(indefinite), bytes32(uint256(9))))
+                >> (112 + 112)
+        );
         assertEq(claimed, 1);
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "../utils/LockeTest.sol";
 
@@ -8,17 +8,13 @@ contract TestRecovery is BaseTest {
         tokenABC();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) =
+            stream.streamParams();
         streamDuration = endStream - startTime;
 
-        writeBalanceOf(address(this), address(testTokenA), 1<<128);
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
-        writeBalanceOf(address(this), address(testTokenC), 1<<128);
+        writeBalanceOf(address(this), address(testTokenA), 1 << 128);
+        writeBalanceOf(address(this), address(testTokenB), 1 << 128);
+        writeBalanceOf(address(this), address(testTokenC), 1 << 128);
     }
 
     function test_recoverRevertRewardTime() public {
@@ -31,7 +27,7 @@ contract TestRecovery is BaseTest {
         testTokenA.transfer(address(stream), 100);
         vm.warp(endStream);
         stream.recoverTokens(address(testTokenA), address(this));
-        assertEq(testTokenA.balanceOf(address(this)), 1<<128);
+        assertEq(testTokenA.balanceOf(address(this)), 1 << 128);
     }
 
     function test_recoverRewardMinusRedeemed() public {
@@ -47,6 +43,6 @@ contract TestRecovery is BaseTest {
         stream.claimReward();
 
         stream.recoverTokens(address(testTokenA), address(this));
-        assertEq(testTokenA.balanceOf(address(this)), 1<<128);
+        assertEq(testTokenA.balanceOf(address(this)), 1 << 128);
     }
 }

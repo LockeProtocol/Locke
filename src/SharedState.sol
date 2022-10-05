@@ -1,4 +1,4 @@
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "./interfaces/IStream.sol";
 import "./interfaces/IReimbursementToken.sol";
@@ -9,15 +9,15 @@ abstract contract SharedState is IReimbursementToken {
     address private immutable depositToken;
 
     constructor(address _depositToken, uint32 _edl) {
-    	depositToken = _depositToken;
-    	endDepositLock = _edl;
+        depositToken = _depositToken;
+        endDepositLock = _edl;
     }
 
-    function underlying() external override view returns (address) {
-    	return depositToken;
+    function underlying() external view override returns (address) {
+        return depositToken;
     }
 
-    function maturity() external override view returns (uint256) {
-    	return endDepositLock;
+    function maturity() external view override returns (uint256) {
+        return endDepositLock;
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.15;
 
 import "../utils/LockeTest.sol";
 
@@ -10,15 +10,11 @@ contract TestDeposit is BaseTest {
         stream = streamSetup(block.timestamp + minStartDelay);
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
 
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) =
+            stream.streamParams();
         streamDuration = endStream - startTime;
 
-        writeBalanceOf(address(this), address(testTokenB), 1<<128);
+        writeBalanceOf(address(this), address(testTokenB), 1 << 128);
     }
 
     function test_claimDepositIndefiniteRevert() public {
@@ -54,18 +50,19 @@ contract TestDeposit is BaseTest {
 
         uint256 preBal = testTokenB.balanceOf(address(this));
 
-
         stream.claimDepositTokens(100);
-        
+
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 5);
 
-        uint256 redeemed = uint256(vm.load(address(stream), bytes32(uint256(10)))) >> 112;
+        // uint256 redeemed =
+        //     uint256(vm.load(address(stream), bytes32(uint256(9)))) >> 112;
+        uint256 redeemed =
+            (uint256(vm.load(address(stream), bytes32(uint256(9)))) << 32)
+            >> (112 + 32);
         assertEq(redeemed, 100);
 
         assertEq(testTokenB.balanceOf(address(this)), preBal + 100);
-
-
 
         stream.claimDepositTokens(5);
     }

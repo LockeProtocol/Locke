@@ -5,7 +5,6 @@ import "solmate/tokens/ERC20.sol";
 import "./interfaces/ILockeERC20.sol";
 import "./SharedState.sol";
 
-
 library DateTime {
     uint256 private constant MAX_UINT256_STRING_LENGTH = 78;
     uint8 private constant ASCII_DIGIT_OFFSET = 48;
@@ -41,7 +40,11 @@ library DateTime {
         return nstr;
     }
 
-    function _monthToString(uint256 month) internal pure returns (string memory s) {
+    function _monthToString(uint256 month)
+        internal
+        pure
+        returns (string memory s)
+    {
         assembly {
             // grab freemem
             let sp := mload(0x40)
@@ -68,21 +71,33 @@ library DateTime {
         }
     }
 
-    function daysToDate(uint _days) public pure returns (string memory datetime) {
-        int __days = int(_days);
+    function daysToDate(uint256 _days)
+        public
+        pure
+        returns (string memory datetime)
+    {
+        int256 __days = int256(_days);
 
-        int L = __days + 68569 + 2440588;
-        int N = 4 * L / 146097;
+        int256 L = __days + 68569 + 2440588;
+        int256 N = 4 * L / 146097;
         L = L - (146097 * N + 3) / 4;
-        int _year = 4000 * (L + 1) / 1461001;
+        int256 _year = 4000 * (L + 1) / 1461001;
         L = L - 1461 * _year / 4 + 31;
-        int _month = 80 * L / 2447;
-        int _day = L - 2447 * _month / 80;
+        int256 _month = 80 * L / 2447;
+        int256 _day = L - 2447 * _month / 80;
         L = _month / 11;
         _month = _month + 2 - 12 * L;
         _year = 100 * (N - 49) + _year + L;
 
-        datetime = string(abi.encodePacked(_monthToString(uint256(_month)), "-", toString(uint256(_day)), "-", toString(uint256(_year))));
+        datetime = string(
+            abi.encodePacked(
+                _monthToString(uint256(_month)),
+                "-",
+                toString(uint256(_day)),
+                "-",
+                toString(uint256(_year))
+            )
+        );
     }
 }
 
@@ -90,6 +105,7 @@ library DateTime {
 /// @author Modified from Solmate (https://github.com/Rari-Capital/solmate/blob/master/src/tokens/ERC20.sol)
 abstract contract LockeERC20 is SharedState, ILockeERC20 {
     error NotTransferableYet();
+
     /*///////////////////////////////////////////////////////////////
                              METADATA STORAGE
     //////////////////////////////////////////////////////////////*/
@@ -98,7 +114,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
 
     string public override symbol;
 
-    uint8 public override immutable decimals;
+    uint8 public immutable override decimals;
 
     uint32 private immutable endStream;
 
@@ -116,8 +132,9 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
                            EIP-2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public override constant PERMIT_TYPEHASH =
-        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 public constant override PERMIT_TYPEHASH = keccak256(
+        "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+    );
 
     uint256 internal immutable INITIAL_CHAIN_ID;
 
@@ -142,26 +159,31 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
 
         if (!isIndefinite) {
             // locke + depositTokenName + streamId = lockeUSD Coin-1
-            string memory datetime = DateTime.daysToDate(_endDepositLock / 86400);
-            name = string(abi.encodePacked(
-                "locke",
-                ERC20(depositToken).name(),
-                " ",
-                DateTime.toString(streamId),
-                ": ",
-                datetime
-            ));
+            string memory datetime =
+                DateTime.daysToDate(_endDepositLock / 86400);
+            name = string(
+                abi.encodePacked(
+                    "locke",
+                    ERC20(depositToken).name(),
+                    " ",
+                    DateTime.toString(streamId),
+                    ": ",
+                    datetime
+                )
+            );
             // locke + Symbol + streamId = lockeUSDC1
             // TODO: we could have start_time+stream_duration+depositlocktime as maturity-date
             // i.e. lockeETH8-AUG-14-2022
 
-            symbol = string(abi.encodePacked(
-                "locke",
-                ERC20(depositToken).symbol(),
-                DateTime.toString(streamId),
-                "-",
-                datetime
-            ));
+            symbol = string(
+                abi.encodePacked(
+                    "locke",
+                    ERC20(depositToken).symbol(),
+                    DateTime.toString(streamId),
+                    "-",
+                    datetime
+                )
+            );
         }
 
         decimals = 18;
@@ -174,7 +196,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
                               ERC20 LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    modifier transferabilityDelay {
+    modifier transferabilityDelay() {
         // ensure the time is after end stream
         if (block.timestamp < endStream) revert NotTransferableYet();
         _;
@@ -184,7 +206,11 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         return endStream;
     }
 
-    function approve(address spender, uint256 amount) external override returns (bool) {
+    function approve(address spender, uint256 amount)
+        external
+        override
+        returns (bool)
+    {
         allowance[msg.sender][spender] = amount;
 
         emit Approval(msg.sender, spender, amount);
@@ -192,7 +218,12 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         return true;
     }
 
-    function transfer(address to, uint256 amount) transferabilityDelay external override returns (bool) {
+    function transfer(address to, uint256 amount)
+        external
+        override
+        transferabilityDelay
+        returns (bool)
+    {
         balanceOf[msg.sender] -= amount;
 
         // This is safe because the sum of all user
@@ -206,11 +237,12 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         return true;
     }
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) transferabilityDelay external override returns (bool) {
+    function transferFrom(address from, address to, uint256 amount)
+        external
+        override
+        transferabilityDelay
+        returns (bool)
+    {
         if (allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] -= amount;
         }
@@ -240,7 +272,10 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external override {
+    )
+        external
+        override
+    {
         require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
 
         // This is safe because the only math done is incrementing
@@ -250,12 +285,17 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
                 abi.encodePacked(
                     "\x19\x01",
                     DOMAIN_SEPARATOR(),
-                    keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))
+                    keccak256(
+                        abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline)
+                    )
                 )
             );
 
             address recoveredAddress = ecrecover(digest, v, r, s);
-            require(recoveredAddress != address(0) && recoveredAddress == owner, "INVALID_PERMIT_SIGNATURE");
+            require(
+                recoveredAddress != address(0) && recoveredAddress == owner,
+                "INVALID_PERMIT_SIGNATURE"
+            );
 
             allowance[recoveredAddress][spender] = value;
         }
@@ -263,21 +303,31 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         emit Approval(owner, spender, value);
     }
 
-    function DOMAIN_SEPARATOR() public view virtual override returns (bytes32) {
-        return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();
+    function DOMAIN_SEPARATOR()
+        public
+        view
+        virtual
+        override
+        returns (bytes32)
+    {
+        return
+            block.chainid == INITIAL_CHAIN_ID
+            ? INITIAL_DOMAIN_SEPARATOR
+            : computeDomainSeparator();
     }
 
     function computeDomainSeparator() internal view virtual returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                    keccak256(bytes(name)),
-                    keccak256(bytes("1")),
-                    block.chainid,
-                    address(this)
-                )
-            );
+        return keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256(bytes(name)),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     /*///////////////////////////////////////////////////////////////
