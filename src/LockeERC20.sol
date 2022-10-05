@@ -137,7 +137,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
 
         if (!isIndefinite) {
             // locke + depositTokenName + streamId = lockeUSD Coin-1
-            string memory datetime = DateTime.daysToDate(_endDepositLock / 86400);
+            string memory datetime = DateTime.daysToDate(_endDepositLock / 1 days);
             name = string(
                 abi.encodePacked("locke", ERC20(depositToken).name(), " ", DateTime.toString(streamId), ": ", datetime)
             );
@@ -232,7 +232,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         unchecked {
             bytes32 digest = keccak256(
                 abi.encodePacked(
-                    "\x19\x01",
+                    hex"1901",
                     DOMAIN_SEPARATOR(),
                     keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))
                 )

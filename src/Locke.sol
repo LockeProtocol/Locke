@@ -26,72 +26,75 @@ contract Stream is LockeERC20, IStream {
 
     // ======= Storage ========
     // ==== Immutables =====
-    // stream start time
+    /// @dev Stream start time
     uint32 private immutable startTime;
-    // length of stream
+    /// @dev Length of stream
     uint32 private immutable streamDuration;
 
-    // end of stream
+    /// @dev End of stream
     uint32 private immutable endStream;
 
-    // end of deposit lock
+    /// @dev End of deposit lock
     uint32 private immutable endDepositLock;
 
-    // end of reward lock
+    /// @dev End of reward lock
     uint32 private immutable endRewardLock;
 
-    // Token given to depositer
+    /// @dev Reward token's address
     address public immutable override rewardToken;
-    // Token deposited
+    /// @dev Deposited token's address
     address public immutable override depositToken;
 
-    // This stream's id
+    /// @dev This stream's id
     uint64 public immutable override streamId;
 
-    // deposits are not ever reclaimable by depositors
+    /// @dev If set, then users do not get their staked tokens back
     bool public immutable override isIndefinite;
 
-    // stream creator
+    /// @dev The stream creator
     address public immutable override streamCreator;
-
+    /// @dev Amount of tokens that is equal to one token
     uint112 private immutable depositDecimalsOne;
     // ============
 
     //  == sloc a ==
-    // internal reward token amount to be given to depositors
+    /// @dev Internal reward token amount to be given to depositors
     uint112 private rewardTokenAmount;
-    // internal deposit token amount locked/to be claimable by stream creator
+    /// @dev Internal deposit token amount locked/to be claimable by stream creator
     uint112 private depositTokenAmount;
     // ============
 
     // == slot b ==
-    // accumulator for reward tokens allocated
+    /// @dev Accumulator for reward tokens allocated
     uint256 private cumulativeRewardPerToken;
     // ============
 
     // == slot c ==
-    // total virtual balance
+    /// @dev Total virtual balance
     uint256 private totalVirtualBalance;
     // ============
 
     // == slot d ==
-    // unstreamed deposit tokens
+    /// @dev Unstreamed deposit tokens
     uint112 public unstreamed;
-    // total claimed deposit tokens (either by depositors or stream creator)
+    /// @dev Total claimed deposit tokens (either by depositors or stream creator)
     uint112 private redeemedDepositTokens;
-    // whether stream creator has claimed deposit tokens
+    /// @dev Whether stream creator has claimed deposit tokens
     bool private claimedDepositTokens;
-    // reentrancy lock
+    /// @dev Reentrancy lock
     uint8 private unlocked = 1;
     // ============
 
     // == slot e ==
+    /// @dev Number of reward tokens redeemed
     uint112 private redeemedRewardTokens;
+    /// @dev Last time state was updated
     uint32 public override lastUpdate;
+    /// @dev Number of seconds during the stream in which there were no depositors
     uint32 public unaccruedSeconds;
     // ============
 
-    // mapping of address to number of tokens not yet streamed over
+    /// @dev Mapping of address to a User's state, including number of tokens not yet streamed over
     mapping(address => TokenStream) public override tokenStreamForAccount;
 
     struct Incentive {
@@ -99,7 +102,7 @@ contract Stream is LockeERC20, IStream {
         bool flag;
     }
 
-    // external incentives to stream creator
+    /// @dev External incentives for the stream creator
     mapping(address => Incentive) public override incentives;
 
     // ======= Modifiers ========
@@ -114,13 +117,20 @@ contract Stream is LockeERC20, IStream {
             revert NotStream();
         }
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
-        // only do one cast
-        //
-        // Safety:
-        //  1. Timestamp wont cross this point until Feb 7th, 2106.
-        uint32 timestamp = uint32(block.timestamp);
 
-        if (block.timestamp >= startTime) {
+        if (block.timestamp < startTime) {
+            if (ts.lastUpdate == 0) {
+                ts.lastUpdate = startTime;
+            }
+        } else {
+            // block.timestamp >= startTime
+
+            // only do one cast
+            //
+            // Safety:
+            //  1. Timestamp wont cross this point until Feb 7th, 2106.
+            uint32 timestamp = uint32(block.timestamp);
+
             // set lastUpdates if need be
             if (ts.lastUpdate == 0) {
                 ts.lastUpdate = timestamp;
@@ -161,7 +171,7 @@ contract Stream is LockeERC20, IStream {
                 // handle global unstreamed
                 // Safety:
                 //  1. timestamp - lastUpdate: lastUpdate is guaranteed to be <= current timestamp when timestamp >= startTime
-                uint256 tdelta = timestamp - lastUpdate;
+                uint32 tdelta = timestamp - lastUpdate;
                 // stream tokens over
                 if (tdelta > 0) {
                     if (unstreamed == 0) {
@@ -173,16 +183,12 @@ contract Stream is LockeERC20, IStream {
                         //  1. tdelta*unstreamed: uint32 * uint112 guaranteed to fit into uint256 so no overflow or zeroed bits
                         //  2. endStream - lastUpdate: lastUpdate guaranteed to be less than endStream in this codepath
                         //  3. tdelta*unstreamed/(endStream - lastUpdate): guaranteed to be less than unstreamed as its a % of unstreamed
-                        unstreamed -= uint112(tdelta * unstreamed / (endStream - lastUpdate));
+                        unstreamed -= uint112(uint256(tdelta) * unstreamed / (endStream - lastUpdate));
                     }
                 }
 
                 // already ensure that blocktimestamp is less than endStream so guaranteed ok here
                 lastUpdate = timestamp;
-            }
-        } else {
-            if (ts.lastUpdate == 0) {
-                ts.lastUpdate = startTime;
             }
         }
     }
@@ -241,10 +247,12 @@ contract Stream is LockeERC20, IStream {
         streamCreator = creator;
 
         uint256 one = ERC20(depositToken).decimals();
-        if (one > 33) {
-            revert BadERC20Interaction();
-        }
-        depositDecimalsOne = uint112(10 ** one);
+        if (one > 33) revert BadERC20Interaction();
+
+        unchecked { depositDecimalsOne = uint112(10 ** one) };
+
+        // check reward token is sane
+        if (ERC20(rewardToken).decimals() > 33) revert BadERC20Interaction();
 
         // set lastUpdate to startTime to reduce codesize and first users gas
         lastUpdate = startTime;
@@ -537,7 +545,7 @@ contract Stream is LockeERC20, IStream {
         if (amount == 0) {
             revert ZeroAmount();
         }
-        // we dont recent the incentive flag
+        // we dont reset the incentive flag
         incentives[token].amt = 0;
         ERC20(token).safeTransfer(msg.sender, amount);
         emit StreamIncentiveClaimed(token, amount);
@@ -601,12 +609,12 @@ contract Stream is LockeERC20, IStream {
             delete tokenStreamForAccount[msg.sender];
 
             // if we havent updated since endStream, update lastupdate and unaccrued seconds
-            uint32 tdelta = lastApplicableTime() - lastUpdate;
+            uint32 tdelta = endStream - lastUpdate;
             if (unstreamed == 0 && tdelta != 0) {
                 unaccruedSeconds += tdelta;
             }
 
-            lastUpdate = lastApplicableTime();
+            lastUpdate = endStream;
         }
 
         if (rewardAmt == 0) {
@@ -627,7 +635,7 @@ contract Stream is LockeERC20, IStream {
     function creatorClaim(address destination) external override lock {
         // only can claim once
         if (claimedDepositTokens) {
-            revert BalanceError();
+            revert CreatorClaimedError();
         }
         // creator is claiming
         if (msg.sender != streamCreator) {
@@ -638,10 +646,10 @@ contract Stream is LockeERC20, IStream {
             revert StreamOngoing();
         }
 
-        uint32 tdelta = lastApplicableTime() - lastUpdate;
+        uint32 tdelta = endStream - lastUpdate;
         if (unstreamed == 0 && tdelta != 0) {
             unaccruedSeconds += tdelta;
-            lastUpdate = lastApplicableTime();
+            lastUpdate = endStream;
         }
 
         // handle unaccounted for reward tokens

@@ -29,6 +29,7 @@ interface IStream is
     error StreamOngoing();
     error StreamTypeError();
     error LockOngoing();
+    error CreatorClaimedError();
 
     // =======   View Functions  ========
     function tokenStreamForAccount(address who)
