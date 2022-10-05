@@ -162,7 +162,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
 
     modifier transferabilityDelay() {
         // ensure the time is after end stream
-        if (block.timestamp < endStream) {
+        if (block.timestamp <= endStream) {
             revert NotTransferableYet();
         }
         _;

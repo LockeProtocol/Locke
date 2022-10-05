@@ -30,6 +30,7 @@ interface IStream is
     error StreamTypeError();
     error LockOngoing();
     error CreatorClaimedError();
+    error NotFunded();
 
     // =======   View Functions  ========
     function tokenStreamForAccount(address who)
@@ -57,6 +58,7 @@ interface IStream is
     function streamCreator() external view returns (address _streamCreator);
     function streamId() external view returns (uint64 _streamId);
     function unaccruedSeconds() external view returns (uint32 _seconds);
+    function totalVirtualBalance() external view returns (uint256);
     function incentives(address token) external view returns (uint112 amount, bool flag);
     function getEarned(address who) external view returns (uint256 rewardEarned);
 

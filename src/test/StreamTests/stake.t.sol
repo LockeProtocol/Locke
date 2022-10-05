@@ -126,6 +126,9 @@ contract TestStake is BaseTest {
     }
 
     function test_stakeERCRevert() public {
+        testTokenA.approve(address(stream), type(uint256).max);
+        stream.fundStream(1000);
+
         vm.warp(block.timestamp + minStartDelay);
         writeBalanceOf(address(stream), address(testTokenB), 2 ** 112 + 1);
 
@@ -135,6 +138,8 @@ contract TestStake is BaseTest {
     }
 
     function test_stakeNoMerkle() public {
+        testTokenA.approve(address(stream), type(uint256).max);
+        stream.fundStream(1000);
         testTokenB.approve(address(stream), 102);
 
         stream.stake(100);
@@ -222,6 +227,8 @@ contract TestStake is BaseTest {
     }
 
     function test_stakeIndefiniteNoMerkle() public {
+        testTokenA.approve(address(indefinite), type(uint256).max);
+        indefinite.fundStream(1000);
         testTokenB.approve(address(indefinite), type(uint256).max);
 
         indefinite.stake(100);

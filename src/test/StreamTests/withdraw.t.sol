@@ -12,7 +12,11 @@ contract TestWithdraw is BaseTest {
         (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
         streamDuration = endStream - startTime;
 
+        writeBalanceOf(address(this), address(testTokenA), 1 << 128);
         writeBalanceOf(address(this), address(testTokenB), 1 << 128);
+        testTokenA.approve(address(stream), type(uint256).max);
+        uint112 amt = 1337;
+        stream.fundStream(amt);
     }
 
     function test_withdrawZeroRevert() public {
@@ -88,9 +92,9 @@ contract TestWithdraw is BaseTest {
                 bool merkleAccess
             ) = stream.tokenStreamForAccount(address(this));
 
-            assertEq(lastCumulativeRewardPerToken, 0);
+            assertEq(lastCumulativeRewardPerToken, 6685000000000000000);
             assertEq(virtualBalance, 80);
-            assertEq(rewards, 0);
+            assertEq(rewards, 668);
             assertEq(tokens, 40);
             assertEq(lastUpdate, startTime + streamDuration / 2);
             assertTrue(!merkleAccess);

@@ -71,7 +71,7 @@ contract Stream is LockeERC20, IStream {
 
     // == slot c ==
     /// @dev Total virtual balance
-    uint256 private totalVirtualBalance;
+    uint256 public totalVirtualBalance;
     // ============
 
     // == slot d ==
@@ -156,14 +156,10 @@ contract Stream is LockeERC20, IStream {
                     // downcast is safe as guaranteed to be a % of uint112
                     if (ts.tokens > 0) {
                         // Safety:
-                        //  1. acctTimeDelta * ts.tokens: acctTimeDelta is uint32, ts.tokens is uint112, cannot overflow uint256
-                        //  2. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
-                        //  3. streamAmt guaranteed to be a truncated (rounded down) % of ts.tokens
-                        uint112 streamAmt = uint112(uint256(acctTimeDelta) * ts.tokens / (endStream - ts.lastUpdate));
-                        if (streamAmt == 0) {
-                            revert ZeroAmount();
-                        }
-                        ts.tokens -= streamAmt;
+                        //  1. endStream guaranteed to be greater than the current timestamp, see first line in this modifier
+                        //  2. (endStream - timestamp) * ts.tokens: (endStream - timestamp) is uint32, ts.tokens is uint112, cannot overflow uint256
+                        //  3. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
+                        ts.tokens = uint112(uint256(endStream - timestamp) * ts.tokens / (endStream - ts.lastUpdate));
                     }
                     ts.lastUpdate = timestamp;
                 }
@@ -174,16 +170,17 @@ contract Stream is LockeERC20, IStream {
                 uint32 tdelta = timestamp - lastUpdate;
                 // stream tokens over
                 if (tdelta > 0) {
-                    if (unstreamed == 0) {
+                    if (totalVirtualBalance == 0) {
                         // Safety:
                         //  1. Σ tdelta guaranteed to be < uint32.max because its upper bound is streamDuration which is a uint32
                         unaccruedSeconds += uint32(tdelta);
-                    } else {
+                    }
+                    if (unstreamed > 0) {
                         // Safety:
                         //  1. tdelta*unstreamed: uint32 * uint112 guaranteed to fit into uint256 so no overflow or zeroed bits
                         //  2. endStream - lastUpdate: lastUpdate guaranteed to be less than endStream in this codepath
                         //  3. tdelta*unstreamed/(endStream - lastUpdate): guaranteed to be less than unstreamed as its a % of unstreamed
-                        unstreamed -= uint112(uint256(tdelta) * unstreamed / (endStream - lastUpdate));
+                        unstreamed = uint112(uint256(endStream - timestamp) * unstreamed / (endStream - lastUpdate));
                     }
                 }
 
@@ -249,7 +246,9 @@ contract Stream is LockeERC20, IStream {
         uint256 one = ERC20(depositToken).decimals();
         if (one > 33) revert BadERC20Interaction();
 
-        unchecked { depositDecimalsOne = uint112(10 ** one) };
+        unchecked {
+            depositDecimalsOne = uint112(10 ** one);
+        }
 
         // check reward token is sane
         if (ERC20(rewardToken).decimals() > 33) revert BadERC20Interaction();
@@ -391,6 +390,10 @@ contract Stream is LockeERC20, IStream {
             revert ZeroAmount();
         }
 
+        if (rewardTokenAmount == 0) {
+            revert NotFunded();
+        }
+
         // checked in updateStream
         // require(block.timestamp < endStream, "stake:!stream");
 
@@ -453,7 +456,7 @@ contract Stream is LockeERC20, IStream {
 
         // saturating subtraction - this is to account for
         // small rounding errors induced by small durations
-        if (currVbal < virtualBal) {
+        if (currVbal < virtualBal || ts.tokens == 0) {
             // if we zero out virtual balance, force the user to take
             // the remaining tokens back
             ts.virtualBalance = 0;
@@ -520,7 +523,10 @@ contract Stream is LockeERC20, IStream {
             revert BadERC20Interaction();
         }
 
-        uint112 amt = uint112(newBal - prevBal);
+        uint112 amt;
+        unchecked {
+            amt = uint112(newBal - prevBal);
+        }
         Incentive storage incentive = incentives[token];
         if (!incentive.flag) {
             incentive.flag = true;
@@ -597,7 +603,9 @@ contract Stream is LockeERC20, IStream {
         } else {
             TokenStream storage ts = tokenStreamForAccount[msg.sender];
             // accumulate reward per token info
-            cumulativeRewardPerToken = rewardPerToken();
+            if (lastUpdate < endStream) {
+                cumulativeRewardPerToken = rewardPerToken();
+            }
 
             // update user rewards
             rewardAmt = earned(ts, cumulativeRewardPerToken);
@@ -610,7 +618,7 @@ contract Stream is LockeERC20, IStream {
 
             // if we havent updated since endStream, update lastupdate and unaccrued seconds
             uint32 tdelta = endStream - lastUpdate;
-            if (unstreamed == 0 && tdelta != 0) {
+            if (totalVirtualBalance == 0 && tdelta != 0) {
                 unaccruedSeconds += tdelta;
             }
 
@@ -647,8 +655,16 @@ contract Stream is LockeERC20, IStream {
         }
 
         uint32 tdelta = endStream - lastUpdate;
-        if (unstreamed == 0 && tdelta != 0) {
-            unaccruedSeconds += tdelta;
+        if (tdelta != 0) {
+            // make sure we update cumulative reward per token, so that `claimReward` is effecient & correct
+            cumulativeRewardPerToken = rewardPerToken();
+
+            // update unaccrued seconds
+            if (totalVirtualBalance == 0) {
+                unaccruedSeconds += tdelta;
+            }
+
+            // set last update to end of stream
             lastUpdate = endStream;
         }
 
