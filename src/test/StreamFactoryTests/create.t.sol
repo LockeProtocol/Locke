@@ -15,7 +15,7 @@ contract StreamFactoryTest is BaseTest {
         StreamCreation sc = new StreamCreation();
         MerkleStreamCreation msc = new MerkleStreamCreation();
 
-        StreamFactory sf = new StreamFactory(bob, bob, sc, msc);
+        StreamFactory sf = new StreamFactory(sc, msc);
 
         (
             uint32 maxDepositLockDuration,
@@ -34,13 +34,8 @@ contract StreamFactoryTest is BaseTest {
     }
 
     function test_createStreamNoMerkle() public {
-        (
-            uint32 maxDepositLockDuration,
-            uint32 maxRewardLockDuration,
-            uint32 maxStreamDuration,
-            uint32 minStreamDuration,
-            uint32 minStartDelay
-        ) = defaultStreamFactory.streamCreationParams();
+        (uint32 maxDepositLockDuration,,, uint32 minStreamDuration, uint32 minStartDelay) =
+            defaultStreamFactory.streamCreationParams();
 
         stream = defaultStreamFactory.createStream(
             address(testTokenA),
@@ -79,13 +74,8 @@ contract StreamFactoryTest is BaseTest {
     }
 
     function test_createStreamMerkle() public {
-        (
-            uint32 maxDepositLockDuration,
-            uint32 maxRewardLockDuration,
-            uint32 maxStreamDuration,
-            uint32 minStreamDuration,
-            uint32 minStartDelay
-        ) = defaultStreamFactory.streamCreationParams();
+        (uint32 maxDepositLockDuration,,, uint32 minStreamDuration, uint32 minStartDelay) =
+            defaultStreamFactory.streamCreationParams();
 
         merkle = defaultStreamFactory.createStream(
             address(testTokenA),

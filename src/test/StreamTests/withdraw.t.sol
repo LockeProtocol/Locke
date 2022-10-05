@@ -37,7 +37,7 @@ contract TestWithdraw is BaseTest {
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 0);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount) = stream.tokenAmounts();
+        (, uint112 depositTokenAmount) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 0);
 
         {
@@ -72,7 +72,7 @@ contract TestWithdraw is BaseTest {
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 90);
-        (uint112 rewardTokenAmount, uint112 depositTokenAmount) = stream.tokenAmounts();
+        (, uint112 depositTokenAmount) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 90);
 
         {

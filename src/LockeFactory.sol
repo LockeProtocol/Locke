@@ -16,21 +16,16 @@ contract MerkleStreamCreation is IMerkleStreamCreation {
 
 contract StreamFactory is IStreamFactory {
     // ======= Storage ========
-    GovernableStreamParams public override streamCreationParams;
+    StreamParamsLimits public override streamCreationParams;
     uint64 public override currStreamId;
 
     IStreamCreation public immutable override streamCreation;
     IMerkleStreamCreation public immutable override merkleStreamCreation;
 
-    constructor(
-        address _governor,
-        address _emergency_governor,
-        StreamCreation _streamCreation,
-        MerkleStreamCreation _merkleStreamCreation
-    ) {
+    constructor(StreamCreation _streamCreation, MerkleStreamCreation _merkleStreamCreation) {
         streamCreation = _streamCreation;
         merkleStreamCreation = _merkleStreamCreation;
-        streamCreationParams = GovernableStreamParams({
+        streamCreationParams = StreamParamsLimits({
             maxDepositLockDuration: 52 weeks,
             maxRewardLockDuration: 52 weeks,
             maxStreamDuration: 2 weeks,
@@ -54,11 +49,7 @@ contract StreamFactory is IStreamFactory {
         uint32 depositLockDuration,
         uint32 rewardLockDuration,
         bool isIndefinite
-    )
-        external
-        override
-        returns (IStream)
-    {
+    ) external override returns (IStream) {
         // perform checks
 
         {
@@ -129,11 +120,7 @@ contract StreamFactory is IStreamFactory {
         uint32 rewardLockDuration,
         bool isIndefinite,
         bytes32 merkleRoot
-    )
-        external
-        override
-        returns (IMerkleStream)
-    {
+    ) external override returns (IMerkleStream) {
         // perform checks
 
         {

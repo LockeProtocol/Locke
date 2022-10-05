@@ -59,9 +59,9 @@ contract Fuzz is BaseTest {
             vm.prank(who);
             stream.claimReward();
         } else if (block.timestamp % 5 == 3 && tokens > 0 && block.timestamp < endStream) {
-            uint112 amount = uint112(bound(amount, 1, lens.currDepositTokensNotYetStreamed(stream, who)));
+            uint112 _amount = uint112(bound(amount, 1, lens.currDepositTokensNotYetStreamed(stream, who)));
             vm.prank(who);
-            stream.withdraw(amount);
+            stream.withdraw(_amount);
         } else if (block.timestamp % 5 == 4 && tokens > 0 && block.timestamp > endDepositLock) {
             uint256 max = bound(LockeERC20(address(stream)).balanceOf(who), 0, type(uint256).max);
             vm.prank(who);
@@ -69,7 +69,11 @@ contract Fuzz is BaseTest {
         }
     }
 
-    function willTakeAction(uint256 timestamp, address who, uint112 rewards, uint112 tokens) internal returns (bool) {
+    function willTakeAction(uint256 timestamp, address, /* who */ uint112 rewards, uint112 tokens)
+        internal
+        view
+        returns (bool)
+    {
         if (timestamp % 5 == 0 && timestamp < endStream) {
             return true;
         } else if (timestamp % 5 == 1 && tokens > 0 && timestamp < endStream) {
@@ -90,9 +94,7 @@ contract Fuzz is BaseTest {
         uint256 fudgeAmtA,
         uint256 fudgeAmtB,
         uint256 fudgeAmtC
-    )
-        public
-    {
+    ) public {
         writeBalanceOf(address(this), address(testTokenA), type(uint256).max);
         writeBalanceOf(address(this), address(testTokenB), type(uint256).max);
         amountA = uint112(bound(amountA, 1, type(uint112).max));

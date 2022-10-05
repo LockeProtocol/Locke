@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
 import "./LockeERC20.sol";
@@ -11,7 +11,7 @@ import "solmate/utils/SafeTransferLib.sol";
 import "solmate/tokens/ERC20.sol";
 
 // ====== Stream =====
-contract Stream is LockeERC20, /* MinimallyExternallyGoverned, */ IStream {
+contract Stream is LockeERC20, IStream {
     using SafeTransferLib for ERC20;
 
     // ======= Structs ========
@@ -258,14 +258,6 @@ contract Stream is LockeERC20, /* MinimallyExternallyGoverned, */ IStream {
         return (rewardTokenAmount, depositTokenAmount);
     }
 
-    // /**
-    //  * @dev Returns fee parameters
-    //  *
-    //  */
-    // function feeParams() external view override returns (uint16, bool) {
-    //     return (feePercent, feeEnabled);
-    // }
-
     /**
      * @dev Returns stream parameters
      *
@@ -367,32 +359,13 @@ contract Stream is LockeERC20, /* MinimallyExternallyGoverned, */ IStream {
             amt = newBal - prevBal;
         }
 
-        // if fee is enabled, take a fee
-        // if (feeEnabled) {
-        //     // Safety:
-        //     //  1. amt is u256 but max possible value is 2**112, so cannot overflow when multiplying
-        //     //  2. amt is guaranteed to be greater than feeAmt
-        //     uint256 feeAmt;
-        //     unchecked {
-        //         feeAmt = amt * feePercent / 10000;
-        //         amt = amt - feeAmt;
-        //     }
-
-        //     // since this operation can be repeated, we cannot assume no overflow so use checked math
-        //     // downcast is safe because (x*y)/MAX_X is guaranteed to be smaller than y which is at most uint112
-        //     rewardTokenFeeAmount += uint112(feeAmt);
-        //     rewardTokenAmount += uint112(amt);
-        // } else {
-
         // downcast is safe as we already ensure < 2**112
         rewardTokenAmount += uint112(amt);
-
-        // }
 
         // protect against rewardPerToken overflow revert
         // this will revert with overflow if it would cause `rewardPerToken` to revert
         uint256 _safeAmtCheck_ = uint256(streamDuration) * rewardTokenAmount * depositDecimalsOne;
-
+        _safeAmtCheck_; // compiler shhh
         emit StreamFunded(amt);
     }
 
@@ -692,40 +665,6 @@ contract Stream is LockeERC20, /* MinimallyExternallyGoverned, */ IStream {
         }
     }
 
-    // /**
-    //  *  @dev Allows the governance contract of the factory to select a destination
-    //  *  and transfer fees (in rewardTokens) to that address totaling the total fee amount
-    //  */
-    // function claimFees(address destination)
-    //     external
-    //     override
-    //     lock
-    //     externallyGoverned
-    // {
-    //     // Stream is done
-    //     if (block.timestamp < endStream) revert StreamOngoing();
-
-    //     // reset fee amount
-    //     uint112 fees = rewardTokenFeeAmount;
-    //     if (fees > 0) {
-    //         rewardTokenFeeAmount = 0;
-
-    //         // transfer and emit event
-    //         ERC20(rewardToken).safeTransfer(destination, fees);
-    //         emit FeesClaimed(rewardToken, destination, fees);
-    //     }
-
-    //     fees = depositTokenFlashloanFeeAmount;
-    //     if (fees > 0) {
-    //         depositTokenFlashloanFeeAmount = 0;
-
-    //         // transfer and emit event
-    //         ERC20(depositToken).safeTransfer(destination, fees);
-
-    //         emit FeesClaimed(depositToken, destination, fees);
-    //     }
-    // }
-
     // ======== Non-protocol functions ========
 
     /**
@@ -818,63 +757,7 @@ contract Stream is LockeERC20, /* MinimallyExternallyGoverned, */ IStream {
         if (preTokenBalance > postTokenBalance) {
             revert BalanceError();
         }
-        // if (token == depositToken) {
-        //     depositTokenFlashloanFeeAmount += feeAmt;
-        // } else {
-        //     rewardTokenFeeAmount += feeAmt;
-        // }
 
         emit Flashloaned(token, msg.sender, amount);
     }
-
-    // /**
-    //  *  @dev Allows inherited governance contract to call functions on behalf of this contract
-    //  *  This is a potentially dangerous function so to ensure trustlessness, *all* balances
-    //  *  that may matter are guaranteed to not change.
-    //  *
-    //  *  The primary usecase is for claiming potentially airdrops that may have accrued on behalf of this contract
-    //  */
-    // function arbitraryCall(address who, bytes calldata data)
-    //     external
-    //     override
-    //     lock
-    //     externallyGoverned
-    // {
-    //     if (block.timestamp <= endStream + 30 days) {
-    //         // cannot have had an active incentive for the callee
-    //         // before the creator has had *ample* time to claim
-    //         if (incentives[who].flag) revert StreamOngoing();
-    //     }
-
-    //     // cannot be to deposit token nor reward token
-    //     if (who == depositToken || who == rewardToken) revert
-    //         BadERC20Interaction();
-    //     // cannot call transferFrom. This stops malicious governance
-    //     // from being able to transfer from users' wallets that performed
-    //     // `createIncentive`
-    //     //
-    //     // selector: bytes4(keccak256("transferFrom(address,address,uint256)"))
-    //     if (bytes4(data[0:4]) == bytes4(0x23b872dd)) revert BadERC20Interaction();
-
-    //     // get token balances
-    //     uint256 preDepositTokenBalance =
-    //         ERC20(depositToken).balanceOf(address(this));
-    //     uint256 preRewardTokenBalance =
-    //         ERC20(rewardToken).balanceOf(address(this));
-
-    //     (bool success, bytes memory _ret) = who.call(data);
-    //     require(success);
-
-    //     // require no change in balances
-    //     uint256 postDepositTokenBalance =
-    //         ERC20(depositToken).balanceOf(address(this));
-    //     uint256 postRewardTokenBalance =
-    //         ERC20(rewardToken).balanceOf(address(this));
-    //     if (
-    //         preDepositTokenBalance
-    //             != postDepositTokenBalance
-    //             || preRewardTokenBalance
-    //             != postRewardTokenBalance
-    //     ) revert BalanceError();
-    // }
 }

@@ -12,7 +12,7 @@ import "../../LockeLens.sol";
 import "solmate/tokens/ERC20.sol";
 import "./TestToken.sol";
 import "forge-std/Vm.sol";
-import "forge-std/stdlib.sol";
+import "forge-std/Test.sol";
 import "ds-test/test.sol";
 
 contract DSTestPlus is DSTest {
@@ -35,7 +35,7 @@ contract DSTestPlus is DSTest {
         White
     }
 
-    function colorToString(Color color) internal returns (string memory s) {
+    function colorToString(Color color) internal pure returns (string memory s) {
         assembly {
             mstore(s, 0x08)
             switch color
@@ -184,23 +184,21 @@ abstract contract BaseTest is DSTestPlus {
 
     function checkState() internal {
         // virtual balance invariant
-        (, uint256 virtualBalanceA, uint112 rewardsA, uint112 tokensA, uint32 luA,) =
-            stream.tokenStreamForAccount(alice);
-        (, uint256 virtualBalanceB, uint112 rewardsB, uint112 tokensB, uint32 luB,) = stream.tokenStreamForAccount(bob);
-        (, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu,) =
-            stream.tokenStreamForAccount(address(this));
+        (,,,, uint32 luA,) = stream.tokenStreamForAccount(alice);
+        (,,,, uint32 luB,) = stream.tokenStreamForAccount(bob);
+        (,,,, uint32 lu,) = stream.tokenStreamForAccount(address(this));
         uint32 max3 = luA > luB ? luA : luB;
         max3 = max3 > lu ? max3 : lu;
         if (max3 != 0) {
             assertEq(max3, stream.lastUpdate());
         }
-        require(!failed, "lastupdate");
+        require(!failed(), "lastupdate");
 
         // receipt token invariant
         if (!stream.isIndefinite()) {
             assertEq(testTokenB.balanceOf(address(stream)), LockeERC20(address(stream)).totalSupply());
         }
-        require(!failed, "receipt token invariant");
+        require(!failed(), "receipt token invariant");
     }
 
     function setupUser(bool writeBalances) internal returns (address user) {
@@ -230,8 +228,7 @@ abstract contract BaseTest is DSTestPlus {
         );
     }
 
-    function lockeCall(address originator, address token, uint256 amount, bytes memory data) external {
-        Stream c_stream = Stream(msg.sender);
+    function lockeCall(address, /*originator*/ address token, uint256 amount, bytes memory data) external {
         (bool sendBackFee, uint256 prevBal) = abi.decode(data, (bool, uint256));
         assertEq(ERC20(token).balanceOf(address(this)), prevBal + amount);
         if (sendBackFee) {
@@ -252,7 +249,7 @@ abstract contract BaseTest is DSTestPlus {
         vm.label(bob, "Bob");
         StreamCreation externalCreate = new StreamCreation();
         MerkleStreamCreation externalCreate2 = new MerkleStreamCreation();
-        defaultStreamFactory = new StreamFactory(address(this), address(this), externalCreate, externalCreate2);
+        defaultStreamFactory = new StreamFactory(externalCreate, externalCreate2);
 
         (
             uint32 _maxDepositLockDuration,
@@ -273,13 +270,7 @@ abstract contract BaseTest is DSTestPlus {
     }
 
     function streamSetup(uint256 _startTime) internal returns (IStream _stream) {
-        (
-            uint32 i_maxDepositLockDuration,
-            uint32 i_maxRewardLockDuration,
-            uint32 i_maxStreamDuration,
-            uint32 i_minStreamDuration,
-            uint32 i_minStartDelay
-        ) = defaultStreamFactory.streamCreationParams();
+        (uint32 i_maxDepositLockDuration,,, uint32 i_minStreamDuration,) = defaultStreamFactory.streamCreationParams();
 
         _stream = defaultStreamFactory.createStream(
             address(testTokenA),
@@ -295,13 +286,7 @@ abstract contract BaseTest is DSTestPlus {
     }
 
     function merkleStreamSetup(uint256 _startTime, bytes32 root) internal returns (IMerkleStream _merkle) {
-        (
-            uint32 i_maxDepositLockDuration,
-            uint32 i_maxRewardLockDuration,
-            uint32 i_maxStreamDuration,
-            uint32 i_minStreamDuration,
-            uint32 i_minStartDelay
-        ) = defaultStreamFactory.streamCreationParams();
+        (uint32 i_maxDepositLockDuration,,, uint32 i_minStreamDuration,) = defaultStreamFactory.streamCreationParams();
 
         _merkle = defaultStreamFactory.createStream(
             address(testTokenA),
@@ -318,13 +303,7 @@ abstract contract BaseTest is DSTestPlus {
     }
 
     function streamSetupIndefinite(uint256 _startTime) internal returns (IStream _stream) {
-        (
-            uint32 i_maxDepositLockDuration,
-            uint32 i_maxRewardLockDuration,
-            uint32 i_maxStreamDuration,
-            uint32 i_minStreamDuration,
-            uint32 i_minStartDelay
-        ) = defaultStreamFactory.streamCreationParams();
+        (uint32 i_maxDepositLockDuration,,, uint32 i_minStreamDuration,) = defaultStreamFactory.streamCreationParams();
 
         _stream = defaultStreamFactory.createStream(
             address(testTokenA),

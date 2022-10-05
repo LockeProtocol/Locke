@@ -14,7 +14,7 @@ interface IMerkleStreamCreation {
 
 interface IStreamFactory {
     // =======  Structs  =======
-    struct GovernableStreamParams {
+    struct StreamParamsLimits {
         uint32 maxDepositLockDuration;
         uint32 maxRewardLockDuration;
         uint32 maxStreamDuration;
@@ -24,7 +24,7 @@ interface IStreamFactory {
 
     // =======  Events  =======
     event StreamCreated(uint256 indexed stream_id, address stream_addr);
-    event StreamParametersUpdated(GovernableStreamParams oldParams, GovernableStreamParams newParams);
+    event StreamParametersUpdated(StreamParamsLimits oldParams, StreamParamsLimits newParams);
 
     // ======= Errors =========
     error StartTimeError();
@@ -43,9 +43,7 @@ interface IStreamFactory {
         uint32 rewardLockDuration,
         bool isIndefinite,
         bytes32 merkleRoot
-    )
-        external
-        returns (IMerkleStream);
+    ) external returns (IMerkleStream);
     function createStream(
         address rewardToken,
         address depositToken,
@@ -54,9 +52,7 @@ interface IStreamFactory {
         uint32 depositLockDuration,
         uint32 rewardLockDuration,
         bool isIndefinite
-    )
-        external
-        returns (IStream);
+    ) external returns (IStream);
     function currStreamId() external view returns (uint64);
     function merkleStreamCreation() external view returns (IMerkleStreamCreation);
     function streamCreation() external view returns (IStreamCreation);
