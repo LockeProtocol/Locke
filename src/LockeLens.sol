@@ -16,7 +16,7 @@ contract LockeLens {
                 return 0;
             }
 
-            (,,, uint112 tokens, uint32 lastUpdate,) = stream.tokenStreamForAccount(address(who));
+            (,, uint176 tokens, uint32 lastUpdate,,) = stream.tokenStreamForAccount(address(who));
 
             if (timestamp < lastUpdate) {
                 return tokens;
@@ -25,10 +25,20 @@ contract LockeLens {
             uint32 acctTimeDelta = timestamp - lastUpdate;
 
             if (acctTimeDelta > 0) {
-                uint256 streamAmt = uint256(acctTimeDelta) * tokens / (endStream - lastUpdate);
-                return tokens - uint112(streamAmt);
+                // some time has passed since this user last interacted
+                // update ts not yet streamed
+                // downcast is safe as guaranteed to be a % of uint112
+                if (tokens > 0) {
+                    // Safety:
+                    //  1. endStream guaranteed to be greater than the current timestamp, see first line in this modifier
+                    //  2. (endStream - timestamp) * ts.tokens: (endStream - timestamp) is uint32, ts.tokens is uint112, cannot overflow uint256
+                    //  3. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
+                    return uint176(uint256(endStream - timestamp) * tokens / (endStream - lastUpdate)) / 10 ** 18;
+                } else {
+                    return 0;
+                }
             } else {
-                return tokens;
+                return tokens / 10 ** 18;
             }
         }
     }

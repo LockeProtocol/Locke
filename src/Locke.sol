@@ -18,10 +18,11 @@ contract Stream is LockeERC20, IStream {
     struct TokenStream {
         uint256 lastCumulativeRewardPerToken;
         uint256 virtualBalance;
-        uint112 rewards;
-        uint112 tokens;
+        // tokens is amount (uint112) scaled by 10**18 (which fits in 2**64), so 112 + 64 == 176.
+        uint176 tokens;
         uint32 lastUpdate;
         bool merkleAccess;
+        uint112 rewards;
     }
 
     // ======= Storage ========
@@ -78,7 +79,7 @@ contract Stream is LockeERC20, IStream {
     /// @dev Unstreamed deposit tokens
     uint112 public unstreamed;
     /// @dev Total claimed deposit tokens (either by depositors or stream creator)
-    uint112 private redeemedDepositTokens;
+    uint112 public override redeemedDepositTokens;
     /// @dev Whether stream creator has claimed deposit tokens
     bool private claimedDepositTokens;
     /// @dev Reentrancy lock
@@ -159,7 +160,7 @@ contract Stream is LockeERC20, IStream {
                         //  1. endStream guaranteed to be greater than the current timestamp, see first line in this modifier
                         //  2. (endStream - timestamp) * ts.tokens: (endStream - timestamp) is uint32, ts.tokens is uint112, cannot overflow uint256
                         //  3. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
-                        ts.tokens = uint112(uint256(endStream - timestamp) * ts.tokens / (endStream - ts.lastUpdate));
+                        ts.tokens = uint176(uint256(endStream - timestamp) * ts.tokens / (endStream - ts.lastUpdate));
                     }
                     ts.lastUpdate = timestamp;
                 }
@@ -300,13 +301,13 @@ contract Stream is LockeERC20, IStream {
             // because when we do rewardDelta calculation for users, its basically (currUnderestimateRPT - storedUnderestimateRPT)
             unchecked {
                 rewards = (uint256(lastApplicableTime() - lastUpdate) * rewardTokenAmount * depositDecimalsOne)
-                    / streamDuration / totalVirtualBalance;
+                    / streamDuration / (totalVirtualBalance / 10 ** 18);
             }
             return cumulativeRewardPerToken + rewards;
         }
     }
 
-    function dilutedBalance(uint112 amount) internal view returns (uint256) {
+    function dilutedBalance(uint176 tokens_amount) internal view returns (uint256) {
         // duration / timeRemaining * amount
         uint32 timeRemaining;
         // Safety:
@@ -314,10 +315,12 @@ contract Stream is LockeERC20, IStream {
         unchecked {
             timeRemaining = endStream - uint32(block.timestamp);
         }
-        uint256 diluted = uint256(streamDuration) * amount / timeRemaining;
+        // stream duration is always guaranteed to be greater than timeRemaining
+        // therefore diluted has a bounded minimum of 10**18, and by extension totalVirtualBalance cannot be lower than 10**18
+        uint256 diluted = uint256(streamDuration) * tokens_amount / timeRemaining;
 
         // if amount is greater than diluted, the stream hasnt started yet
-        return amount < diluted ? diluted : amount;
+        return tokens_amount < diluted ? diluted : tokens_amount;
     }
 
     function getEarned(address who) external view override returns (uint256) {
@@ -335,7 +338,7 @@ contract Stream is LockeERC20, IStream {
 
         // TODO: Think more about the bounds on ts.virtualBalance. This mul may be able to be unchecked?
         // NOTE: This can cause small rounding issues that will leave dust in the contract
-        uint112 reward = uint112(ts.virtualBalance * rewardDelta / depositDecimalsOne);
+        uint112 reward = uint112(ts.virtualBalance * rewardDelta / depositDecimalsOne / 10 ** 18);
         return reward + ts.rewards;
     }
 
@@ -414,10 +417,12 @@ contract Stream is LockeERC20, IStream {
 
         depositTokenAmount += trueDepositAmt;
 
-        TokenStream storage ts = tokenStreamForAccount[msg.sender];
-        ts.tokens += trueDepositAmt;
+        uint176 tokens_amt = uint176(uint256(trueDepositAmt) * 10 ** 18);
 
-        uint256 virtualBal = dilutedBalance(trueDepositAmt);
+        TokenStream storage ts = tokenStreamForAccount[msg.sender];
+        ts.tokens += tokens_amt;
+
+        uint256 virtualBal = dilutedBalance(tokens_amt);
         ts.virtualBalance += virtualBal;
         totalVirtualBalance += virtualBal;
         unstreamed += trueDepositAmt;
@@ -438,20 +443,22 @@ contract Stream is LockeERC20, IStream {
      */
     function withdraw(uint112 amount) external override lock updateStream {
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
-        if (ts.tokens < amount) {
+        uint176 tokens_amt = uint176(uint256(amount) * 10 ** 18);
+        if (ts.tokens < tokens_amt) {
             revert BalanceError();
         }
-        _withdraw(amount, ts);
+
+        _withdraw(tokens_amt, amount, ts);
     }
 
-    function _withdraw(uint112 amount, TokenStream storage ts) internal {
-        if (amount == 0) {
+    function _withdraw(uint176 tokens_amt, uint112 amt, TokenStream storage ts) internal {
+        if (tokens_amt == 0) {
             revert ZeroAmount();
         }
 
-        ts.tokens -= amount;
+        ts.tokens -= tokens_amt;
 
-        uint256 virtualBal = dilutedBalance(amount);
+        uint256 virtualBal = dilutedBalance(tokens_amt);
         uint256 currVbal = ts.virtualBalance;
 
         // saturating subtraction - this is to account for
@@ -460,7 +467,7 @@ contract Stream is LockeERC20, IStream {
             // if we zero out virtual balance, force the user to take
             // the remaining tokens back
             ts.virtualBalance = 0;
-            amount += ts.tokens;
+            amt += uint112(ts.tokens / 10 ** 18);
             ts.tokens = 0;
             totalVirtualBalance -= currVbal;
         } else {
@@ -468,25 +475,25 @@ contract Stream is LockeERC20, IStream {
             totalVirtualBalance -= virtualBal;
         }
 
-        depositTokenAmount -= amount;
+        depositTokenAmount -= amt;
 
         // Given how we calculate an individual's tokens vs global unstreamed tokens,
         // there can be rounding such that these are slightly off from each other
         // in that case, just do saturating subtraction
-        if (amount > unstreamed) {
+        if (amt > unstreamed) {
             unstreamed = 0;
         } else {
-            unstreamed -= amount;
+            unstreamed -= amt;
         }
 
         if (!isIndefinite) {
-            _burn(msg.sender, amount);
+            _burn(msg.sender, amt);
         }
 
         // do the transfer
-        ERC20(depositToken).safeTransfer(msg.sender, amount);
+        ERC20(depositToken).safeTransfer(msg.sender, amt);
 
-        emit Withdrawn(msg.sender, amount);
+        emit Withdrawn(msg.sender, amt);
     }
 
     /**
@@ -500,8 +507,11 @@ contract Stream is LockeERC20, IStream {
         // is the stream still going on? thats the only time a depositer can withdraw
         // require(block.timestamp < endStream, "withdraw:!stream");
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
-        uint112 amount = ts.tokens;
-        _withdraw(amount, ts);
+        uint112 amount = uint112(ts.tokens / 10 ** 18);
+        if (amount == 0) {
+            revert ZeroAmount();
+        }
+        _withdraw(ts.tokens, amount, ts);
     }
 
     /**

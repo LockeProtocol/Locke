@@ -18,6 +18,9 @@ contract TestMerkleStake is BaseTest {
         writeBalanceOf(address(this), address(testTokenA), 1 << 128);
         writeBalanceOf(address(this), address(testTokenB), 1 << 128);
         writeBalanceOf(approved, address(testTokenB), 1 << 128);
+        testTokenA.approve(address(merkle), type(uint256).max);
+        uint112 amt = 1337;
+        merkle.fundStream(amt);
     }
 
     function test_merkleStake() public {

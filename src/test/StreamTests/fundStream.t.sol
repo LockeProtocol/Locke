@@ -16,12 +16,14 @@ contract TestFundStream is BaseTest {
     function test_fundStreamZeroAmt() public {
         vm.expectRevert(IStream.ZeroAmount.selector);
         stream.fundStream(0);
+        checkState();
     }
 
     function test_fundStreamFundAfterStart() public {
         vm.warp(block.timestamp + minStartDelay + minStreamDuration);
         vm.expectRevert(IStream.NotBeforeStream.selector);
         stream.fundStream(100);
+        checkState();
     }
 
     function test_fundStreamNoFees() public {
@@ -29,6 +31,7 @@ contract TestFundStream is BaseTest {
         uint112 amt = 1337;
 
         stream.fundStream(amt);
+        checkState();
         {
             (uint112 rewardTokenAmount,) = stream.tokenAmounts();
             assertEq(rewardTokenAmount, amt);
@@ -38,6 +41,7 @@ contract TestFundStream is BaseTest {
         // log gas usage for a second fund stream
 
         stream.fundStream(1337);
+        checkState();
         {
             (uint112 rewardTokenAmount,) = stream.tokenAmounts();
             assertEq(rewardTokenAmount, 2 * amt);

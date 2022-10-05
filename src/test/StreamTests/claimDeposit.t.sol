@@ -14,42 +14,59 @@ contract TestDeposit is BaseTest {
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenB), 1 << 128);
+        writeBalanceOf(address(this), address(testTokenA), 1 << 128);
+        testTokenA.approve(address(stream), type(uint256).max);
+        uint112 amt = 1337;
+        stream.fundStream(amt);
+
+        testTokenA.approve(address(indefinite), type(uint256).max);
+        indefinite.fundStream(amt);
     }
 
     function test_claimDepositIndefiniteRevert() public {
         testTokenB.approve(address(indefinite), 100);
         indefinite.stake(100);
+        checkState();
+
         vm.warp(endDepositLock);
         vm.expectRevert(IStream.StreamTypeError.selector);
         indefinite.claimDepositTokens(100);
+        checkState();
     }
 
     function test_claimDepositAmtRevert() public {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
+
         vm.warp(endDepositLock);
         vm.expectRevert(IStream.ZeroAmount.selector);
         stream.claimDepositTokens(0);
+        checkState();
     }
 
     function test_claimDepositLockRevert() public {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
 
         stream.maturity();
         vm.expectRevert(IStream.LockOngoing.selector);
         stream.claimDepositTokens(100);
+        checkState();
     }
 
     function test_claimDeposit() public {
         testTokenB.approve(address(stream), 105);
         stream.stake(105);
+        checkState();
 
         vm.warp(endDepositLock + 1);
 
         uint256 preBal = testTokenB.balanceOf(address(this));
 
         stream.claimDepositTokens(100);
+        checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 5);
@@ -62,5 +79,6 @@ contract TestDeposit is BaseTest {
         assertEq(testTokenB.balanceOf(address(this)), preBal + 100);
 
         stream.claimDepositTokens(5);
+        checkState();
     }
 }

@@ -14,19 +14,30 @@ contract TestExit is BaseTest {
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenB), 1 << 128);
+        writeBalanceOf(address(this), address(testTokenA), 1 << 128);
+        testTokenA.approve(address(stream), type(uint256).max);
+        uint112 amt = 1337;
+        stream.fundStream(amt);
+
+        testTokenA.approve(address(indefinite), type(uint256).max);
+        amt = 1337;
+        indefinite.fundStream(amt);
     }
 
     function test_exitZeroRevert() public {
         testTokenB.approve(address(stream), 100);
         vm.expectRevert(IStream.ZeroAmount.selector);
         stream.exit();
+        checkState();
     }
 
     function test_exit() public {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
 
         stream.exit();
+        checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 0);
@@ -40,10 +51,10 @@ contract TestExit is BaseTest {
             (
                 uint256 lastCumulativeRewardPerToken,
                 uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
+                uint176 tokens,
                 uint32 lastUpdate,
-                bool merkleAccess
+                bool merkleAccess,
+                uint112 rewards
             ) = stream.tokenStreamForAccount(address(this));
 
             assertEq(lastCumulativeRewardPerToken, 0);
@@ -59,10 +70,12 @@ contract TestExit is BaseTest {
         vm.warp(startTime + 1);
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
+        checkState();
 
-        vm.warp(startTime + streamDuration / 2 + 1); // move to half done
+        vm.warp(startTime + streamDuration / 2); // move to half done
 
         stream.exit();
+        checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 50);
@@ -76,17 +89,17 @@ contract TestExit is BaseTest {
             (
                 uint256 lastCumulativeRewardPerToken,
                 uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
+                uint176 tokens,
                 uint32 lastUpdate,
-                bool merkleAccess
+                bool merkleAccess,
+                uint112 rewards
             ) = stream.tokenStreamForAccount(address(this));
 
-            assertEq(lastCumulativeRewardPerToken, 0);
+            assertEq(lastCumulativeRewardPerToken, 6681286111111111111);
             assertEq(virtualBalance, 0);
-            assertEq(rewards, 0);
+            assertEq(rewards, 668);
             assertEq(tokens, 0);
-            assertEq(lastUpdate, startTime + streamDuration / 2 + 1);
+            assertEq(lastUpdate, startTime + streamDuration / 2);
             assertTrue(!merkleAccess);
         }
     }
@@ -111,15 +124,15 @@ contract TestExit is BaseTest {
             (
                 uint256 lastCumulativeRewardPerToken,
                 uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
+                uint176 tokens,
                 uint32 lastUpdate,
-                bool merkleAccess
+                bool merkleAccess,
+                uint112 rewards
             ) = indefinite.tokenStreamForAccount(address(this));
 
-            assertEq(lastCumulativeRewardPerToken, 0);
+            assertEq(lastCumulativeRewardPerToken, 6685000000000000000);
             assertEq(virtualBalance, 0);
-            assertEq(rewards, 0);
+            assertEq(rewards, 668);
             assertEq(tokens, 0);
             assertEq(lastUpdate, startTime + streamDuration / 2);
             assertTrue(!merkleAccess);

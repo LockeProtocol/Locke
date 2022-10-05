@@ -39,10 +39,10 @@ interface IStream is
         returns (
             uint256 lastCumulativeRewardPerToken,
             uint256 virtualBalance,
-            uint112 rewards,
-            uint112 tokens,
+            uint176 tokens,
             uint32 lastUpdate,
-            bool merkleAccess
+            bool merkleAccess,
+            uint112 rewards
         );
     function streamParams()
         external
@@ -59,6 +59,7 @@ interface IStream is
     function streamId() external view returns (uint64 _streamId);
     function unaccruedSeconds() external view returns (uint32 _seconds);
     function totalVirtualBalance() external view returns (uint256);
+    function redeemedDepositTokens() external view returns (uint112);
     function incentives(address token) external view returns (uint112 amount, bool flag);
     function getEarned(address who) external view returns (uint256 rewardEarned);
 
