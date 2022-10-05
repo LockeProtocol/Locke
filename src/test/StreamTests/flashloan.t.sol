@@ -23,9 +23,7 @@ contract TestFlashloan is BaseTest {
 
         uint256 currBal = testTokenB.balanceOf(address(this));
 
-        stream.flashloan(
-            address(testTokenB), address(this), 1337, abi.encode(true, currBal)
-        );
+        stream.flashloan(address(testTokenB), address(this), 1337, abi.encode(true, currBal));
 
         assertTrue(enteredFlashloan);
     }

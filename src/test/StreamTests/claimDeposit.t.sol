@@ -10,8 +10,7 @@ contract TestDeposit is BaseTest {
         stream = streamSetup(block.timestamp + minStartDelay);
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
 
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenB), 1 << 128);
@@ -57,9 +56,7 @@ contract TestDeposit is BaseTest {
 
         // uint256 redeemed =
         //     uint256(vm.load(address(stream), bytes32(uint256(9)))) >> 112;
-        uint256 redeemed =
-            (uint256(vm.load(address(stream), bytes32(uint256(9)))) << 32)
-            >> (112 + 32);
+        uint256 redeemed = (uint256(vm.load(address(stream), bytes32(uint256(9)))) << 32) >> (112 + 32);
         assertEq(redeemed, 100);
 
         assertEq(testTokenB.balanceOf(address(this)), preBal + 100);

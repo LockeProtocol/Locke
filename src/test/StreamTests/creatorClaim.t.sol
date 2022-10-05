@@ -10,8 +10,7 @@ contract TestCreatorClaimTokens is BaseTest {
         stream = streamSetup(block.timestamp + minStartDelay);
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
 
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenA), 1 << 128);
@@ -74,15 +73,10 @@ contract TestCreatorClaimTokens is BaseTest {
 
         assertEq(testTokenB.balanceOf(address(this)), preBal + 100);
 
-        uint256 redeemed =
-            (uint256(vm.load(address(indefinite), bytes32(uint256(9)))) << 32)
-            >> (112 + 32);
+        uint256 redeemed = (uint256(vm.load(address(indefinite), bytes32(uint256(9)))) << 32) >> (112 + 32);
         assertEq(redeemed, 100);
 
-        uint8 claimed = uint8(
-            uint256(vm.load(address(indefinite), bytes32(uint256(9))))
-                >> (112 + 112)
-        );
+        uint8 claimed = uint8(uint256(vm.load(address(indefinite), bytes32(uint256(9)))) >> (112 + 112));
         assertEq(claimed, 1);
     }
 }

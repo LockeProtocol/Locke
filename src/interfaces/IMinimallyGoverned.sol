@@ -6,10 +6,7 @@ interface IMinimallyGoverned {
     error NotGov();
 
     event NewGov(address indexed oldGov, address indexed newGov);
-    event NewPendingGov(
-        address indexed oldPendingGov,
-        address indexed newPendingGov
-    );
+    event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
 
     function gov() external view returns (address _gov);
     function __abdicate() external;

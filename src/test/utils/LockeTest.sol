@@ -90,97 +90,39 @@ contract DSTestPlus is DSTest {
         emit log_bytes(abi.encodePacked(colorToString(color), a, "\x1b[0m"));
     }
 
-    function emit_log_named_address(Color color, string memory key, address val)
-        internal
-    {
-        emit log_named_address(
-            string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val
-            );
+    function emit_log_named_address(Color color, string memory key, address val) internal {
+        emit log_named_address(string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val);
     }
 
-    function emit_log_named_bytes32(Color color, string memory key, bytes32 val)
-        internal
-    {
-        emit log_named_bytes32(
-            string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val
-            );
+    function emit_log_named_bytes32(Color color, string memory key, bytes32 val) internal {
+        emit log_named_bytes32(string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val);
     }
 
-    function emit_log_named_decimal_int(
-        Color color,
-        string memory key,
-        int256 val,
-        uint256 decimals
-    )
-        internal
-    {
-        emit log_named_decimal_int(
-            string(abi.encodePacked(colorToString(color), key, "\x1b[0m")),
-            val,
-            decimals
-            );
+    function emit_log_named_decimal_int(Color color, string memory key, int256 val, uint256 decimals) internal {
+        emit log_named_decimal_int(string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val, decimals);
     }
 
-    function emit_log_named_decimal_uint(
-        Color color,
-        string memory key,
-        uint256 val,
-        uint256 decimals
-    )
-        internal
-    {
-        emit log_named_decimal_uint(
-            string(abi.encodePacked(colorToString(color), key, "\x1b[0m")),
-            val,
-            decimals
-            );
+    function emit_log_named_decimal_uint(Color color, string memory key, uint256 val, uint256 decimals) internal {
+        emit log_named_decimal_uint(string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val, decimals);
     }
 
-    function emit_log_named_int(Color color, string memory key, int256 val)
-        internal
-    {
-        emit log_named_int(
-            string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val
-            );
+    function emit_log_named_int(Color color, string memory key, int256 val) internal {
+        emit log_named_int(string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val);
     }
 
-    function emit_log_named_uint(Color color, string memory key, uint256 val)
-        internal
-    {
-        emit log_named_uint(
-            string(abi.encodePacked(colorToString(color), key, string("\x1b[0m"))),
-            val
-            );
+    function emit_log_named_uint(Color color, string memory key, uint256 val) internal {
+        emit log_named_uint(string(abi.encodePacked(colorToString(color), key, string("\x1b[0m"))), val);
     }
 
-    function emit_log_named_bytes(
-        Color color,
-        string memory key,
-        bytes memory val
-    )
-        internal
-    {
-        emit log_named_bytes(
-            string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val
-            );
+    function emit_log_named_bytes(Color color, string memory key, bytes memory val) internal {
+        emit log_named_bytes(string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val);
     }
 
-    function emit_log_named_string(
-        Color color,
-        string memory key,
-        string memory val
-    )
-        internal
-    {
-        emit log_named_string(
-            string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val
-            );
+    function emit_log_named_string(Color color, string memory key, string memory val) internal {
+        emit log_named_string(string(abi.encodePacked(colorToString(color), key, "\x1b[0m")), val);
     }
 
-    function assertRelApproxEq(uint256 a, uint256 b, uint256 maxPercentDelta)
-        internal
-        virtual
-    {
+    function assertRelApproxEq(uint256 a, uint256 b, uint256 maxPercentDelta) internal virtual {
         uint256 delta = a > b ? a - b : b - a;
         if (delta == 0) {
             return;
@@ -242,12 +184,11 @@ abstract contract BaseTest is DSTestPlus {
 
     function checkState() internal {
         // virtual balance invariant
-        (, uint256 virtualBalanceA, uint112 rewardsA, uint112 tokensA, uint32 luA,)
-            = stream.tokenStreamForAccount(alice);
-        (, uint256 virtualBalanceB, uint112 rewardsB, uint112 tokensB, uint32 luB,)
-            = stream.tokenStreamForAccount(bob);
-        (, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu,)
-            = stream.tokenStreamForAccount(address(this));
+        (, uint256 virtualBalanceA, uint112 rewardsA, uint112 tokensA, uint32 luA,) =
+            stream.tokenStreamForAccount(alice);
+        (, uint256 virtualBalanceB, uint112 rewardsB, uint112 tokensB, uint32 luB,) = stream.tokenStreamForAccount(bob);
+        (, uint256 virtualBalance, uint112 rewards, uint112 tokens, uint32 lu,) =
+            stream.tokenStreamForAccount(address(this));
         uint32 max3 = luA > luB ? luA : luB;
         max3 = max3 > lu ? max3 : lu;
         if (max3 != 0) {
@@ -257,10 +198,7 @@ abstract contract BaseTest is DSTestPlus {
 
         // receipt token invariant
         if (!stream.isIndefinite()) {
-            assertEq(
-                testTokenB.balanceOf(address(stream)),
-                LockeERC20(address(stream)).totalSupply()
-            );
+            assertEq(testTokenB.balanceOf(address(stream)), LockeERC20(address(stream)).totalSupply());
         }
         require(!failed, "receipt token invariant");
     }
@@ -276,8 +214,7 @@ abstract contract BaseTest is DSTestPlus {
     }
 
     function writeBalanceOf(address who, address token, uint256 amt) internal {
-        stdstore.target(token).sig(testTokenA.balanceOf.selector).with_key(who)
-            .checked_write(amt);
+        stdstore.target(token).sig(testTokenA.balanceOf.selector).with_key(who).checked_write(amt);
     }
 
     function createDefaultStream() public returns (IStream) {
@@ -293,15 +230,8 @@ abstract contract BaseTest is DSTestPlus {
         );
     }
 
-    function lockeCall(
-        address originator,
-        address token,
-        uint256 amount,
-        bytes memory data
-    )
-        external
-    {
-        Stream stream = Stream(msg.sender);
+    function lockeCall(address originator, address token, uint256 amount, bytes memory data) external {
+        Stream c_stream = Stream(msg.sender);
         (bool sendBackFee, uint256 prevBal) = abi.decode(data, (bool, uint256));
         assertEq(ERC20(token).balanceOf(address(this)), prevBal + amount);
         if (sendBackFee) {
@@ -322,8 +252,7 @@ abstract contract BaseTest is DSTestPlus {
         vm.label(bob, "Bob");
         StreamCreation externalCreate = new StreamCreation();
         MerkleStreamCreation externalCreate2 = new MerkleStreamCreation();
-        defaultStreamFactory =
-        new StreamFactory(address(this), address(this), externalCreate, externalCreate2);
+        defaultStreamFactory = new StreamFactory(address(this), address(this), externalCreate, externalCreate2);
 
         (
             uint32 _maxDepositLockDuration,
@@ -343,78 +272,72 @@ abstract contract BaseTest is DSTestPlus {
         vm.label(address(lens), "Lens");
     }
 
-    function streamSetup(uint256 startTime) internal returns (IStream stream) {
+    function streamSetup(uint256 _startTime) internal returns (IStream _stream) {
         (
-            uint32 maxDepositLockDuration,
-            uint32 maxRewardLockDuration,
-            uint32 maxStreamDuration,
-            uint32 minStreamDuration,
-            uint32 minStartDelay
+            uint32 i_maxDepositLockDuration,
+            uint32 i_maxRewardLockDuration,
+            uint32 i_maxStreamDuration,
+            uint32 i_minStreamDuration,
+            uint32 i_minStartDelay
         ) = defaultStreamFactory.streamCreationParams();
 
-        stream = defaultStreamFactory.createStream(
+        _stream = defaultStreamFactory.createStream(
             address(testTokenA),
             address(testTokenB),
-            uint32(startTime), // 10 seconds in future
-            minStreamDuration,
-            maxDepositLockDuration,
+            uint32(_startTime), // 10 seconds in future
+            i_minStreamDuration,
+            i_maxDepositLockDuration,
             0,
             false // false,
                 // bytes32(0)
         );
-        vm.label(address(stream), "Stream");
+        vm.label(address(_stream), "Stream");
     }
 
-    function merkleStreamSetup(uint256 startTime, bytes32 root)
-        internal
-        returns (IMerkleStream merkle)
-    {
+    function merkleStreamSetup(uint256 _startTime, bytes32 root) internal returns (IMerkleStream _merkle) {
         (
-            uint32 maxDepositLockDuration,
-            uint32 maxRewardLockDuration,
-            uint32 maxStreamDuration,
-            uint32 minStreamDuration,
-            uint32 minStartDelay
+            uint32 i_maxDepositLockDuration,
+            uint32 i_maxRewardLockDuration,
+            uint32 i_maxStreamDuration,
+            uint32 i_minStreamDuration,
+            uint32 i_minStartDelay
         ) = defaultStreamFactory.streamCreationParams();
 
-        merkle = defaultStreamFactory.createStream(
+        _merkle = defaultStreamFactory.createStream(
             address(testTokenA),
             address(testTokenB),
-            uint32(startTime), // 10 seconds in future
-            minStreamDuration,
-            maxDepositLockDuration,
+            uint32(_startTime), // 10 seconds in future
+            i_minStreamDuration,
+            i_maxDepositLockDuration,
             0,
             false,
             root // false,
                 // bytes32(0)
         );
-        vm.label(address(merkle), "MerkleStream");
+        vm.label(address(_merkle), "MerkleStream");
     }
 
-    function streamSetupIndefinite(uint256 startTime)
-        internal
-        returns (IStream stream)
-    {
+    function streamSetupIndefinite(uint256 _startTime) internal returns (IStream _stream) {
         (
-            uint32 maxDepositLockDuration,
-            uint32 maxRewardLockDuration,
-            uint32 maxStreamDuration,
-            uint32 minStreamDuration,
-            uint32 minStartDelay
+            uint32 i_maxDepositLockDuration,
+            uint32 i_maxRewardLockDuration,
+            uint32 i_maxStreamDuration,
+            uint32 i_minStreamDuration,
+            uint32 i_minStartDelay
         ) = defaultStreamFactory.streamCreationParams();
 
-        stream = defaultStreamFactory.createStream(
+        _stream = defaultStreamFactory.createStream(
             address(testTokenA),
             address(testTokenB),
-            uint32(startTime), // 10 seconds in future
-            minStreamDuration,
-            maxDepositLockDuration,
+            uint32(_startTime), // 10 seconds in future
+            i_minStreamDuration,
+            i_maxDepositLockDuration,
             0,
             true // false,
                 // bytes32(0)
         );
 
-        vm.label(address(stream), "Indefinite");
+        vm.label(address(_stream), "Indefinite");
     }
 
     function tokenA() public {

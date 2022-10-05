@@ -53,18 +53,11 @@ contract StreamFactoryTest is BaseTest {
         );
         vm.label(address(stream), "Stream");
 
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
 
         assertEq(startTime, block.timestamp + minStartDelay);
         assertEq(endStream, block.timestamp + minStartDelay + minStreamDuration);
-        assertEq(
-            endDepositLock,
-            block.timestamp
-                + minStartDelay
-                + minStreamDuration
-                + maxDepositLockDuration
-        );
+        assertEq(endDepositLock, block.timestamp + minStartDelay + minStreamDuration + maxDepositLockDuration);
         assertEq(endRewardLock, block.timestamp + minStartDelay + 0);
 
         assertEq(stream.rewardToken(), address(testTokenA));
@@ -106,18 +99,11 @@ contract StreamFactoryTest is BaseTest {
         );
         vm.label(address(merkle), "MerkleStream");
 
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            merkle.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = merkle.streamParams();
 
         assertEq(startTime, block.timestamp + minStartDelay);
         assertEq(endStream, block.timestamp + minStartDelay + minStreamDuration);
-        assertEq(
-            endDepositLock,
-            block.timestamp
-                + minStartDelay
-                + minStreamDuration
-                + maxDepositLockDuration
-        );
+        assertEq(endDepositLock, block.timestamp + minStartDelay + minStreamDuration + maxDepositLockDuration);
         assertEq(endRewardLock, block.timestamp + minStartDelay + 0);
 
         assertEq(merkle.rewardToken(), address(testTokenA));

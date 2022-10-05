@@ -10,8 +10,7 @@ contract TestExit is BaseTest {
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenB), 1 << 128);
@@ -31,10 +30,7 @@ contract TestExit is BaseTest {
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 0);
-        (
-            uint112 rewardTokenAmount,
-            uint112 depositTokenAmount
-        ) = stream.tokenAmounts();
+        (uint112 rewardTokenAmount, uint112 depositTokenAmount) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 0);
 
         {
@@ -70,10 +66,7 @@ contract TestExit is BaseTest {
 
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 50);
-        (
-            uint112 rewardTokenAmount,
-            uint112 depositTokenAmount
-        ) = stream.tokenAmounts();
+        (uint112 rewardTokenAmount, uint112 depositTokenAmount) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 50);
 
         {
@@ -108,10 +101,7 @@ contract TestExit is BaseTest {
 
         ILockeERC20 asLERC = ILockeERC20(indefinite);
         assertEq(asLERC.balanceOf(address(this)), 0);
-        (
-            uint112 rewardTokenAmount,
-            uint112 depositTokenAmount
-        ) = indefinite.tokenAmounts();
+        (uint112 rewardTokenAmount, uint112 depositTokenAmount) = indefinite.tokenAmounts();
         assertEq(depositTokenAmount, 50);
 
         {

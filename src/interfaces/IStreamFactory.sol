@@ -24,10 +24,7 @@ interface IStreamFactory {
 
     // =======  Events  =======
     event StreamCreated(uint256 indexed stream_id, address stream_addr);
-    event StreamParametersUpdated(
-        GovernableStreamParams oldParams,
-        GovernableStreamParams newParams
-    );
+    event StreamParametersUpdated(GovernableStreamParams oldParams, GovernableStreamParams newParams);
 
     // ======= Errors =========
     error StartTimeError();
@@ -61,10 +58,7 @@ interface IStreamFactory {
         external
         returns (IStream);
     function currStreamId() external view returns (uint64);
-    function merkleStreamCreation()
-        external
-        view
-        returns (IMerkleStreamCreation);
+    function merkleStreamCreation() external view returns (IMerkleStreamCreation);
     function streamCreation() external view returns (IStreamCreation);
     function streamCreationParams()
         external

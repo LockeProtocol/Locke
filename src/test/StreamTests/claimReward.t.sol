@@ -8,8 +8,7 @@ contract TestClaimReward is BaseTest {
         tokenAB();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenA), 1 << 128);
@@ -43,8 +42,7 @@ contract TestClaimReward is BaseTest {
                 uint32 lastUpdate,
                 bool merkleAccess
             ) = stream.tokenStreamForAccount(address(this));
-            uint256 currTokens =
-                lens.currDepositTokensNotYetStreamed(stream, address(this));
+            uint256 currTokens = lens.currDepositTokensNotYetStreamed(stream, address(this));
             // 1801 * 1000 * 10**18 // 3600 // 100
             assertEq(lastCumulativeRewardPerToken, 5002777777777777777);
 
@@ -54,9 +52,7 @@ contract TestClaimReward is BaseTest {
             assertEq(currTokens, 50);
             assertEq(lastUpdate, startTime + streamDuration / 2 + 1);
             assertTrue(!merkleAccess);
-            assertEq(
-                testTokenA.balanceOf(address(this)), uint256(1 << 128) - 500
-            );
+            assertEq(testTokenA.balanceOf(address(this)), uint256(1 << 128) - 500);
         }
     }
 

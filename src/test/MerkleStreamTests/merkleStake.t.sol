@@ -5,16 +5,14 @@ import "../utils/LockeTest.sol";
 import "../../interfaces/IMerkleStream.sol";
 
 contract TestMerkleStake is BaseTest {
-    bytes32 constant merkleRoot =
-        0x0cb3e761c847b0a2bd9e379b4ec584c83a23cff9e3a60e3782c10235e4f4690d;
+    bytes32 constant merkleRoot = 0x0cb3e761c847b0a2bd9e379b4ec584c83a23cff9e3a60e3782c10235e4f4690d;
     address approved = address(0x00a329c0648769A73afAc7F9381E08FB43dBEA72);
 
     function setUp() public {
         tokenAB();
         setupInternal();
         merkle = merkleStreamSetup(block.timestamp + minStartDelay, merkleRoot);
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            merkle.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = merkle.streamParams();
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenA), 1 << 128);
@@ -24,8 +22,7 @@ contract TestMerkleStake is BaseTest {
 
     function test_merkleStake() public {
         bytes32[] memory proof = new bytes32[](1);
-        proof[0] =
-            hex"a344aaf96e56d11c06dfb44729e931ae00ed3e67b4668eaacd6f5a88ebb48c70";
+        proof[0] = hex"a344aaf96e56d11c06dfb44729e931ae00ed3e67b4668eaacd6f5a88ebb48c70";
         vm.startPrank(approved);
         testTokenB.approve(address(merkle), 100);
         merkle.stake(100, proof);
@@ -33,8 +30,7 @@ contract TestMerkleStake is BaseTest {
 
     function test_merkleStakeRevertAccess() public {
         bytes32[] memory proof = new bytes32[](1);
-        proof[0] =
-            hex"a344aaf96e56d11c06dfb44729e931ae00ed3e67b4668eaacd6f5a88ebb48c70";
+        proof[0] = hex"a344aaf96e56d11c06dfb44729e931ae00ed3e67b4668eaacd6f5a88ebb48c70";
         vm.startPrank(bob);
         testTokenB.approve(address(merkle), 100);
         vm.expectRevert(IMerkleStream.NoAccess.selector);

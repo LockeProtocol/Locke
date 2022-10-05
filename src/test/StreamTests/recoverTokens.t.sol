@@ -8,8 +8,7 @@ contract TestRecovery is BaseTest {
         tokenABC();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
         streamDuration = endStream - startTime;
 
         writeBalanceOf(address(this), address(testTokenA), 1 << 128);

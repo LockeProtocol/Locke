@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
 import "./Locke.sol";
@@ -11,11 +11,10 @@ contract StreamCreation is IStreamCreation {
 }
 
 contract MerkleStreamCreation is IMerkleStreamCreation {
-    bytes public constant override creationCode =
-        type(MerkleStream).creationCode;
+    bytes public constant override creationCode = type(MerkleStream).creationCode;
 }
 
-contract StreamFactory is IStreamFactory/*, MinimallyGoverned */{
+contract StreamFactory is IStreamFactory {
     // ======= Storage ========
     GovernableStreamParams public override streamCreationParams;
     uint64 public override currStreamId;
@@ -28,9 +27,7 @@ contract StreamFactory is IStreamFactory/*, MinimallyGoverned */{
         address _emergency_governor,
         StreamCreation _streamCreation,
         MerkleStreamCreation _merkleStreamCreation
-    )
-        // MinimallyGoverned(_governor)
-    {
+    ) {
         streamCreation = _streamCreation;
         merkleStreamCreation = _merkleStreamCreation;
         streamCreationParams = GovernableStreamParams({
@@ -65,24 +62,23 @@ contract StreamFactory is IStreamFactory/*, MinimallyGoverned */{
         // perform checks
 
         {
+            if (startTime < block.timestamp + streamCreationParams.minStartDelay) {
+                revert StartTimeError();
+            }
             if (
-                startTime < block.timestamp + streamCreationParams.minStartDelay
-            ) revert StartTimeError();
+                streamDuration < streamCreationParams.minStreamDuration
+                    || streamDuration > streamCreationParams.maxStreamDuration
+            ) {
+                revert StreamDurationError();
+            }
             if (
-                streamDuration
-                    < streamCreationParams.minStreamDuration
-                    || streamDuration
-                    > streamCreationParams.maxStreamDuration
-            ) revert StreamDurationError();
-            if (
-                depositLockDuration
-                    > streamCreationParams.maxDepositLockDuration
-                    || rewardLockDuration
-                    > streamCreationParams.maxRewardLockDuration
-            ) revert LockDurationError();
+                depositLockDuration > streamCreationParams.maxDepositLockDuration
+                    || rewardLockDuration > streamCreationParams.maxRewardLockDuration
+            ) {
+                revert LockDurationError();
+            }
         }
 
-        // TODO: figure out sane salt, i.e. streamid + x? streamid guaranteed to be unique
         uint64 that_stream = currStreamId;
         currStreamId += 1;
         bytes32 salt = bytes32(uint256(that_stream));
@@ -108,7 +104,9 @@ contract StreamFactory is IStreamFactory/*, MinimallyGoverned */{
             // We start 32 bytes into the code to avoid copying the byte length.
             stream := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
-        if (address(stream) == address(0)) revert DeployFailed();
+        if (address(stream) == address(0)) {
+            revert DeployFailed();
+        }
 
         emit StreamCreated(that_stream, address(stream));
 
@@ -139,21 +137,21 @@ contract StreamFactory is IStreamFactory/*, MinimallyGoverned */{
         // perform checks
 
         {
+            if (startTime < block.timestamp + streamCreationParams.minStartDelay) {
+                revert StartTimeError();
+            }
             if (
-                startTime < block.timestamp + streamCreationParams.minStartDelay
-            ) revert StartTimeError();
+                streamDuration < streamCreationParams.minStreamDuration
+                    || streamDuration > streamCreationParams.maxStreamDuration
+            ) {
+                revert StreamDurationError();
+            }
             if (
-                streamDuration
-                    < streamCreationParams.minStreamDuration
-                    || streamDuration
-                    > streamCreationParams.maxStreamDuration
-            ) revert StreamDurationError();
-            if (
-                depositLockDuration
-                    > streamCreationParams.maxDepositLockDuration
-                    || rewardLockDuration
-                    > streamCreationParams.maxRewardLockDuration
-            ) revert LockDurationError();
+                depositLockDuration > streamCreationParams.maxDepositLockDuration
+                    || rewardLockDuration > streamCreationParams.maxRewardLockDuration
+            ) {
+                revert LockDurationError();
+            }
         }
 
         bytes memory bytecode;
@@ -182,34 +180,12 @@ contract StreamFactory is IStreamFactory/*, MinimallyGoverned */{
             stream := create2(0, add(bytecode, 32), mload(bytecode), sload(currStreamId.slot))
         }
 
-        if (address(stream) == address(0)) revert DeployFailed();
+        if (address(stream) == address(0)) {
+            revert DeployFailed();
+        }
 
         emit StreamCreated(currStreamId, address(stream));
         currStreamId++;
         return stream;
     }
-
-    // function updateStreamParams(GovernableStreamParams memory newParams)
-    //     external
-    //     override
-    //     governed
-    // {
-    //     // DATA VALIDATION:
-    //     //  there is no real concept of "sane" limits here, and if misconfigured its ultimated
-    //     //  not a massive deal so no data validation is done
-    //     GovernableStreamParams memory old = streamCreationParams;
-    //     streamCreationParams = newParams;
-    //     emit StreamParametersUpdated(old, newParams);
-    // }
-
-    // function updateFeeParams(GovernableFeeParams memory newFeeParams)
-    //     external
-    //     override
-    //     governed
-    // {
-    //     if (newFeeParams.feePercent > MAX_FEE_PERCENT) revert GovParamsError();
-    //     GovernableFeeParams memory old = feeParams;
-    //     feeParams = newFeeParams;
-    //     emit FeeParametersUpdated(old, newFeeParams);
-    // }
 }

@@ -9,8 +9,7 @@ contract TestStake is BaseTest {
         tokenAB();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
-        (startTime, endStream, endDepositLock, endRewardLock) =
-            stream.streamParams();
+        (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
         streamDuration = endStream - startTime;
 
         indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
@@ -141,10 +140,7 @@ contract TestStake is BaseTest {
         stream.stake(100);
         ILockeERC20 asLERC = ILockeERC20(stream);
         assertEq(asLERC.balanceOf(address(this)), 100);
-        (
-            uint112 rewardTokenAmount,
-            uint112 depositTokenAmount
-        ) = stream.tokenAmounts();
+        (uint112 rewardTokenAmount, uint112 depositTokenAmount) = stream.tokenAmounts();
         assertEq(depositTokenAmount, 100);
 
         {
@@ -233,10 +229,7 @@ contract TestStake is BaseTest {
         // no tokens wen indefinite
         assertEq(asLERC.balanceOf(address(this)), 0);
 
-        (
-            uint112 rewardTokenAmount,
-            uint112 depositTokenAmount
-        ) = indefinite.tokenAmounts();
+        (uint112 rewardTokenAmount, uint112 depositTokenAmount) = indefinite.tokenAmounts();
         assertEq(depositTokenAmount, 100);
         {
             uint112 unstreamed = indefinite.unstreamed();

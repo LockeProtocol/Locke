@@ -14,17 +14,9 @@ interface IStream is
     event StreamIncentiveClaimed(address indexed token, uint256 amount);
     event TokensClaimed(address indexed who, uint256 amount);
     event DepositTokensReclaimed(address indexed who, uint256 amount);
-    event RecoveredTokens(
-        address indexed token,
-        address indexed recipient,
-        uint256 amount
-    );
+    event RecoveredTokens(address indexed token, address indexed recipient, uint256 amount);
     event RewardsClaimed(address indexed who, uint256 amount);
-    event Flashloaned(
-        address indexed token,
-        address indexed who,
-        uint256 amount
-    );
+    event Flashloaned(address indexed token, address indexed who, uint256 amount);
 
     // =======   Errors  ========
     error NotStream();
@@ -53,19 +45,8 @@ interface IStream is
     function streamParams()
         external
         view
-        returns (
-            uint32 startTime,
-            uint32 endStream,
-            uint32 endDepositLock,
-            uint32 endRewardLock
-        );
-    function tokenAmounts()
-        external
-        view
-        returns (
-            uint112 rewardTokenAmount,
-            uint112 depositTokenAmount
-        );
+        returns (uint32 startTime, uint32 endStream, uint32 endDepositLock, uint32 endRewardLock);
+    function tokenAmounts() external view returns (uint112 rewardTokenAmount, uint112 depositTokenAmount);
     function lastUpdate() external view returns (uint32 _lastUpdate);
     function isIndefinite() external view returns (bool _isIndefinite);
     function unstreamed() external view returns (uint112 _unstreamed);
@@ -74,14 +55,8 @@ interface IStream is
     function rewardToken() external view returns (address _rewardToken);
     function streamCreator() external view returns (address _streamCreator);
     function streamId() external view returns (uint64 _streamId);
-    function incentives(address token)
-        external
-        view
-        returns (uint112 amount, bool flag);
-    function getEarned(address who)
-        external
-        view
-        returns (uint256 rewardEarned);
+    function incentives(address token) external view returns (uint112 amount, bool flag);
+    function getEarned(address who) external view returns (uint256 rewardEarned);
 
     // ======= State modifying Functions  ========
     function createIncentive(address token, uint112 amount) external;
@@ -94,12 +69,6 @@ interface IStream is
     function claimReward() external;
     function claimDepositTokens(uint112 amount) external;
 
-    function flashloan(
-        address token,
-        address to,
-        uint112 amount,
-        bytes calldata data
-    )
-        external;
+    function flashloan(address token, address to, uint112 amount, bytes calldata data) external;
     function claimIncentive(address token) external;
 }

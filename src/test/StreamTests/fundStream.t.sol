@@ -30,10 +30,7 @@ contract TestFundStream is BaseTest {
 
         stream.fundStream(amt);
         {
-            (
-                uint112 rewardTokenAmount,
-                uint112 _unused
-            ) = stream.tokenAmounts();
+            (uint112 rewardTokenAmount, uint112 _unused) = stream.tokenAmounts();
             assertEq(rewardTokenAmount, amt);
             assertEq(testTokenA.balanceOf(address(stream)), amt);
         }
@@ -42,10 +39,7 @@ contract TestFundStream is BaseTest {
 
         stream.fundStream(1337);
         {
-            (
-                uint112 rewardTokenAmount,
-                uint112 _unused
-            ) = stream.tokenAmounts();
+            (uint112 rewardTokenAmount, uint112 _unused) = stream.tokenAmounts();
             assertEq(rewardTokenAmount, 2 * amt);
             assertEq(testTokenA.balanceOf(address(stream)), 2 * 1337);
         }
