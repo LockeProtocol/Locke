@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.17;
 
 import "./LockeERC20.sol";
 import "./SharedState.sol";
@@ -88,7 +88,7 @@ contract Stream is LockeERC20, IStream {
     // == slot e ==
     uint112 private redeemedRewardTokens;
     uint32 public override lastUpdate;
-    uint32 private unaccruedSeconds;
+    uint32 public unaccruedSeconds;
     // ============
 
     // mapping of address to number of tokens not yet streamed over

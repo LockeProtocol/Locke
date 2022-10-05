@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.17;
 
 import "./interfaces/IStream.sol";
 
@@ -30,6 +30,19 @@ contract LockeLens {
             } else {
                 return tokens;
             }
+        }
+    }
+
+    function lastApplicableTime(IStream stream) public view returns (uint32) {
+        (uint32 startTime, uint32 endStream,,) = stream.streamParams();
+        if (block.timestamp <= endStream) {
+            if (block.timestamp <= startTime) {
+                return startTime;
+            } else {
+                return uint32(block.timestamp);
+            }
+        } else {
+            return endStream;
         }
     }
 

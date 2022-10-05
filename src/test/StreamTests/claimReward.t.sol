@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.15;
+pragma solidity 0.8.17;
 
 import "../utils/LockeTest.sol";
 
@@ -51,6 +51,51 @@ contract TestClaimReward is BaseTest {
             assertEq(tokens, 50);
             assertEq(currTokens, 50);
             assertEq(lastUpdate, startTime + streamDuration / 2 + 1);
+            assertTrue(!merkleAccess);
+            assertEq(testTokenA.balanceOf(address(this)), uint256(1 << 128) - 500);
+        }
+    }
+
+    function test_claimOngoingUnaccrued() public {
+        testTokenA.approve(address(stream), 1000);
+        stream.fundStream(1000);
+
+        testTokenB.approve(address(stream), 100);
+        stream.stake(100);
+        vm.warp(startTime + streamDuration / 2 + 1);
+
+        // stream.claimReward();
+
+        {
+            uint256 unstreamed = lens.currUnstreamed(stream);
+            assertEq(unstreamed, 50);
+
+            stream.exit();
+
+            vm.warp(startTime + streamDuration / 2 + 2);
+
+            unstreamed = lens.currUnstreamed(stream);
+            assertEq(unstreamed, 0);
+
+            stream.claimReward();
+
+            (
+                uint256 lastCumulativeRewardPerToken,
+                uint256 virtualBalance,
+                uint112 rewards,
+                uint112 tokens,
+                uint32 lastUpdate,
+                bool merkleAccess
+            ) = stream.tokenStreamForAccount(address(this));
+            uint256 currTokens = lens.currDepositTokensNotYetStreamed(stream, address(this));
+            // 1801 * 1000 * 10**18 // 3600 // 100
+            assertEq(lastCumulativeRewardPerToken, 5002777777777777777);
+
+            assertEq(virtualBalance, 0);
+            assertEq(rewards, 0);
+            assertEq(tokens, 0);
+            assertEq(currTokens, 0);
+            assertEq(lastUpdate, startTime + streamDuration / 2 + 2);
             assertTrue(!merkleAccess);
             assertEq(testTokenA.balanceOf(address(this)), uint256(1 << 128) - 500);
         }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.15;
+pragma solidity 0.8.17;
 
 import "../utils/LockeTest.sol";
 import "../../interfaces/IMerkleStream.sol";
@@ -26,6 +26,23 @@ contract TestMerkleStake is BaseTest {
         vm.startPrank(approved);
         testTokenB.approve(address(merkle), 100);
         merkle.stake(100, proof);
+    }
+
+    function test_merkleStakeNoProof() public {
+        bytes32[] memory proof = new bytes32[](1);
+        proof[0] = hex"a344aaf96e56d11c06dfb44729e931ae00ed3e67b4668eaacd6f5a88ebb48c70";
+        vm.startPrank(approved);
+        testTokenB.approve(address(merkle), 200);
+        merkle.stake(100, proof);
+
+        merkle.stake(100);
+    }
+
+    function test_merkleStakeNoProofRevert() public {
+        vm.startPrank(approved);
+        testTokenB.approve(address(merkle), 200);
+        vm.expectRevert(IMerkleStream.NoAccess.selector);
+        merkle.stake(100);
     }
 
     function test_merkleStakeRevertAccess() public {

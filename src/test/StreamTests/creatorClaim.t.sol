@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.15;
+pragma solidity 0.8.17;
 
 import "../utils/LockeTest.sol";
 
@@ -27,6 +27,36 @@ contract TestCreatorClaimTokens is BaseTest {
 
         vm.warp(endDepositLock + 1);
         stream.claimReward();
+
+        uint256 unstreamed = lens.currUnstreamed(stream);
+        assertEq(unstreamed, 0);
+
+        uint256 unaccrued = uint256(vm.load(address(stream), bytes32(uint256(10)))) >> 144;
+        assertEq(unaccrued, streamDuration / 2);
+
+        stream.creatorClaim(address(this));
+        assertEq(testTokenA.balanceOf(address(stream)), 0);
+    }
+
+    function test_creatorClaimTokensLeftoversWExit() public {
+        testTokenA.approve(address(stream), 1000);
+        stream.fundStream(1000);
+
+        vm.warp(startTime + streamDuration / 2);
+        testTokenB.approve(address(stream), 100);
+        stream.stake(100);
+        uint256 unaccrued = uint256(vm.load(address(stream), bytes32(uint256(10)))) >> 144;
+        assertEq(unaccrued, streamDuration / 2);
+
+        vm.warp(startTime + streamDuration * 10 / 15);
+        stream.exit();
+        uint256 unstreamed = lens.currUnstreamed(stream);
+        assertEq(unstreamed, 0);
+        vm.warp(endDepositLock + 1);
+        stream.claimReward();
+
+        unaccrued = uint256(vm.load(address(stream), bytes32(uint256(10)))) >> 144;
+        assertEq(unaccrued, streamDuration / 2 + streamDuration * 5 / 15);
         stream.creatorClaim(address(this));
         assertEq(testTokenA.balanceOf(address(stream)), 0);
     }
