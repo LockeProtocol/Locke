@@ -79,7 +79,7 @@ include_push_bytes = true
 
 [invariant]
 runs = 256
-depth = 15
+depth = 40
 fail_on_revert = false
 call_override = false
 dictionary_weight = 80
@@ -89,3 +89,7 @@ include_push_bytes = true
 
 [profile.CI.fuzz]
 runs = 10000
+
+[profile.CI.invariant]
+runs = 1000
+depth = 600
