@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.17;
 
-import "../utils/LockeTest.sol";
-import "../../interfaces/ILockeERC20.sol";
+import "../utils/LockeTest.t.sol";
+import "../../src/interfaces/ILockeERC20.sol";
 
 contract TestStake is BaseTest {
     function setUp() public {

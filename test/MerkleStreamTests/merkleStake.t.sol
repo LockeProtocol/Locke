@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.17;
 
-import "../utils/LockeTest.sol";
-import "../../interfaces/IMerkleStream.sol";
+import "../utils/LockeTest.t.sol";
+import "../../src/interfaces/IMerkleStream.sol";
 
 contract TestMerkleStake is BaseTest {
     bytes32 constant merkleRoot = 0x0cb3e761c847b0a2bd9e379b4ec584c83a23cff9e3a60e3782c10235e4f4690d;

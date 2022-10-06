@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "./utils/LockeTest.sol";
-import "../interfaces/IStream.sol";
+import "./utils/LockeTest.t.sol";
+import "../src/interfaces/IStream.sol";
 import "forge-std/Vm.sol";
 import "forge-std/Test.sol";
 

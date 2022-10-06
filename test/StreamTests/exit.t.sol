@@ -1,93 +1,42 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.17;
 
-import "../utils/LockeTest.sol";
-import "../../interfaces/ILockeERC20.sol";
+import "../utils/LockeTest.t.sol";
+import "../../src/interfaces/ILockeERC20.sol";
 
-contract TestWithdraw is BaseTest {
+contract TestExit is BaseTest {
     function setUp() public {
         tokenAB();
         setupInternal();
         stream = streamSetup(block.timestamp + minStartDelay);
+        indefinite = streamSetupIndefinite(block.timestamp + minStartDelay);
         (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
         streamDuration = endStream - startTime;
 
-        writeBalanceOf(address(this), address(testTokenA), 1 << 128);
         writeBalanceOf(address(this), address(testTokenB), 1 << 128);
+        writeBalanceOf(address(this), address(testTokenA), 1 << 128);
         testTokenA.approve(address(stream), type(uint256).max);
         uint112 amt = 1337;
         stream.fundStream(amt);
+
+        testTokenA.approve(address(indefinite), type(uint256).max);
+        amt = 1337;
+        indefinite.fundStream(amt);
     }
 
-    function test_withdrawZeroRevert() public {
+    function test_exitZeroRevert() public {
         testTokenB.approve(address(stream), 100);
-        stream.stake(100);
         vm.expectRevert(IStream.ZeroAmount.selector);
-        stream.withdraw(0);
-    }
-
-    function test_withdrawBalanceRevert() public {
-        testTokenB.approve(address(stream), 100);
-        stream.stake(100);
-        vm.expectRevert(IStream.BalanceError.selector);
-        stream.withdraw(105);
-    }
-
-    function test_unstreamed() public {
-        writeBalanceOf(alice, address(testTokenB), 1 << 128);
-        writeBalanceOf(bob, address(testTokenB), 1 << 128);
-        startTime = uint32(block.timestamp + minStartDelay);
-        stream = defaultStreamFactory.createStream(
-            address(testTokenA),
-            address(testTokenB),
-            uint32(block.timestamp + minStartDelay),
-            8888,
-            maxDepositLockDuration,
-            0,
-            false
-        );
-        // false,
-        // bytes32(0)
-
-        testTokenA.approve(address(stream), type(uint256).max);
-        uint112 amt = 1337;
-        stream.fundStream(amt);
-        vm.label(address(stream), "Stream");
-
-        vm.warp(startTime);
-        vm.startPrank(alice);
-        testTokenB.approve(address(stream), type(uint256).max);
-        stream.stake(1052);
-        vm.stopPrank();
-
-        checkState();
-
-        vm.warp(startTime + 99);
-        vm.startPrank(bob);
-        testTokenB.approve(address(stream), type(uint256).max);
-        stream.stake(6733);
-        vm.stopPrank();
-
-        checkState();
-
-        vm.warp(startTime + 136);
-        vm.prank(alice);
         stream.exit();
-        vm.prank(bob);
-        stream.exit();
-
         checkState();
-
-        assertEq(stream.unstreamed(), 1);
-        assertEq(stream.totalVirtualBalance(), 0);
     }
 
-    function test_withdraw() public {
+    function test_exit() public {
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
         checkState();
 
-        stream.withdraw(100);
+        stream.exit();
         checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
@@ -117,24 +66,25 @@ contract TestWithdraw is BaseTest {
         }
     }
 
-    function test_withdrawTimePassed() public {
+    function test_exitTimePassed() public {
+        vm.warp(startTime + 1);
         testTokenB.approve(address(stream), 100);
         stream.stake(100);
         checkState();
 
         vm.warp(startTime + streamDuration / 2); // move to half done
 
-        stream.withdraw(10);
+        stream.exit();
         checkState();
 
         ILockeERC20 asLERC = ILockeERC20(stream);
-        assertEq(asLERC.balanceOf(address(this)), 90);
+        assertEq(asLERC.balanceOf(address(this)), 50);
         (, uint112 depositTokenAmount) = stream.tokenAmounts();
-        assertEq(depositTokenAmount, 90);
+        assertEq(depositTokenAmount, 50);
 
         {
             uint112 unstreamed = stream.unstreamed();
-            assertEq(unstreamed, 100 * 50 / 100 - 10);
+            assertEq(unstreamed, 0);
 
             (
                 uint256 lastCumulativeRewardPerToken,
@@ -145,10 +95,45 @@ contract TestWithdraw is BaseTest {
                 uint112 rewards
             ) = stream.tokenStreamForAccount(address(this));
 
-            assertEq(lastCumulativeRewardPerToken, 6685000000000000000);
-            assertEq(virtualBalance, 80 * 10 ** 18);
+            assertEq(lastCumulativeRewardPerToken, 6681286111111111111);
+            assertEq(virtualBalance, 0);
             assertEq(rewards, 668);
-            assertEq(tokens, 40 * 10 ** 18);
+            assertEq(tokens, 0);
+            assertEq(lastUpdate, startTime + streamDuration / 2);
+            assertTrue(!merkleAccess);
+        }
+    }
+
+    function test_exitTimePassedIndefinite() public {
+        testTokenB.approve(address(indefinite), 100);
+        indefinite.stake(100);
+
+        vm.warp(startTime + streamDuration / 2); // move to half done
+
+        indefinite.exit();
+
+        ILockeERC20 asLERC = ILockeERC20(indefinite);
+        assertEq(asLERC.balanceOf(address(this)), 0);
+        (, uint112 depositTokenAmount) = indefinite.tokenAmounts();
+        assertEq(depositTokenAmount, 50);
+
+        {
+            uint112 unstreamed = indefinite.unstreamed();
+            assertEq(unstreamed, 0);
+
+            (
+                uint256 lastCumulativeRewardPerToken,
+                uint256 virtualBalance,
+                uint176 tokens,
+                uint32 lastUpdate,
+                bool merkleAccess,
+                uint112 rewards
+            ) = indefinite.tokenStreamForAccount(address(this));
+
+            assertEq(lastCumulativeRewardPerToken, 6685000000000000000);
+            assertEq(virtualBalance, 0);
+            assertEq(rewards, 668);
+            assertEq(tokens, 0);
             assertEq(lastUpdate, startTime + streamDuration / 2);
             assertTrue(!merkleAccess);
         }

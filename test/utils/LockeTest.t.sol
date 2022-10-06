@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "../../interfaces/IStreamFactory.sol";
-import "../../interfaces/IStream.sol";
-import "../../interfaces/IMerkleStream.sol";
+import "../../src/interfaces/IStreamFactory.sol";
+import "../../src/interfaces/IStream.sol";
+import "../../src/interfaces/IMerkleStream.sol";
 
-import "../../Locke.sol";
-import "../../MerkleLocke.sol";
-import "../../LockeFactory.sol";
-import "../../LockeLens.sol";
+import "../../src/Locke.sol";
+import "../../src/MerkleLocke.sol";
+import "../../src/LockeFactory.sol";
+import "../../src/LockeLens.sol";
 import "solmate/tokens/ERC20.sol";
 import "./TestToken.sol";
 import "forge-std/Vm.sol";
