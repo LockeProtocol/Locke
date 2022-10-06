@@ -88,8 +88,8 @@ include_push_bytes = true
 
 
 [profile.CI.fuzz]
-runs = 10000
+runs = 1000
 
 [profile.CI.invariant]
-runs = 1000
-depth = 600
+runs = 256
+depth = 40
