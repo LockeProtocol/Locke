@@ -136,11 +136,11 @@ contract Fuzz is BaseTest {
             stream.withdraw(amount);
             checkState();
 
-            (, uint256 virtualBalance,, uint112 t,,) = stream.tokenStreamForAccount(address(this));
-            (, uint256 bob_virtualBalance,, uint112 bob_t,,) = stream.tokenStreamForAccount(bob);
+            (, uint256 _virtualBalance,, uint112 t,,) = stream.tokenStreamForAccount(address(this));
+            (, uint256 _bob_virtualBalance,, uint112 bob_t,,) = stream.tokenStreamForAccount(bob);
             assertLe(bob_t0, bob_t, "lastUpdate bob le");
             assertLe(t0, t, "lastUpdate address(this) le");
-            assertEq(stream.totalVirtualBalance(), virtualBalance + bob_virtualBalance);
+            assertEq(stream.totalVirtualBalance(), _virtualBalance + _bob_virtualBalance);
             vm.stopPrank();
             require(!failed());
         }

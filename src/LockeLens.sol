@@ -19,7 +19,7 @@ contract LockeLens {
             (,, uint176 tokens, uint32 lastUpdate,,) = stream.tokenStreamForAccount(address(who));
 
             if (timestamp < lastUpdate) {
-                return tokens;
+                return tokens / 10 ** 18;
             }
 
             uint32 acctTimeDelta = timestamp - lastUpdate;
@@ -40,19 +40,6 @@ contract LockeLens {
             } else {
                 return tokens / 10 ** 18;
             }
-        }
-    }
-
-    function lastApplicableTime(IStream stream) public view returns (uint32) {
-        (uint32 startTime, uint32 endStream,,) = stream.streamParams();
-        if (block.timestamp <= endStream) {
-            if (block.timestamp <= startTime) {
-                return startTime;
-            } else {
-                return uint32(block.timestamp);
-            }
-        } else {
-            return endStream;
         }
     }
 
@@ -97,5 +84,18 @@ contract LockeLens {
         uint32 lastUpdate = stream.lastUpdate();
         uint32 tdelta = timestamp - lastUpdate;
         return unstreamed - (uint256(tdelta) * unstreamed / (endStream - lastUpdate));
+    }
+
+    /**
+     * @dev Gets the current number of reward tokens that will be reclaimable by the creator
+     *
+     */
+    function unrewardedTokens(IStream stream) external view returns (uint256) {
+        (uint32 startTime, uint32 endStream,,) = stream.streamParams();
+        uint32 streamDuration = endStream - startTime;
+        (uint112 rewardTokenAmount,) = stream.tokenAmounts();
+        uint256 actualStreamedTime = uint256(streamDuration - stream.unaccruedSeconds());
+        uint256 actualRewards = actualStreamedTime * rewardTokenAmount / streamDuration;
+        return rewardTokenAmount - actualRewards;
     }
 }

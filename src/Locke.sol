@@ -154,12 +154,13 @@ contract Stream is LockeERC20, IStream {
                 if (acctTimeDelta > 0) {
                     // some time has passed since this user last interacted
                     // update ts not yet streamed
-                    // downcast is safe as guaranteed to be a % of uint112
                     if (ts.tokens > 0) {
                         // Safety:
                         //  1. endStream guaranteed to be greater than the current timestamp, see first line in this modifier
-                        //  2. (endStream - timestamp) * ts.tokens: (endStream - timestamp) is uint32, ts.tokens is uint112, cannot overflow uint256
+                        //  2. (endStream - timestamp) * ts.tokens: (endStream - timestamp) is uint32, ts.tokens is uint176, cannot overflow uint256
                         //  3. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
+                        //  4. downcast is safe as we had a uint32 * uint176, which is uint208, followed by a division by a uint32, bringing us
+                        //     back down to 176 max
                         ts.tokens = uint176(uint256(endStream - timestamp) * ts.tokens / (endStream - ts.lastUpdate));
                     }
                     ts.lastUpdate = timestamp;
