@@ -61,6 +61,11 @@ contract TestDeposit is BaseTest {
         stream.stake(105);
         checkState();
 
+        ILockeERC20 asLERC = ILockeERC20(stream);
+        vm.expectRevert(ILockeERC20.NotTransferableYet.selector);
+        asLERC.transfer(address(1), 1);
+        assertEq(asLERC.balanceOf(address(this)), 105);
+
         vm.warp(endDepositLock + 1);
 
         uint256 preBal = testTokenB.balanceOf(address(this));
@@ -68,8 +73,8 @@ contract TestDeposit is BaseTest {
         stream.claimDepositTokens(100);
         checkState();
 
-        ILockeERC20 asLERC = ILockeERC20(stream);
-        assertEq(asLERC.balanceOf(address(this)), 5);
+        asLERC.transfer(address(1), 1);
+        assertEq(asLERC.balanceOf(address(this)), 4);
 
         // uint256 redeemed =
         //     uint256(vm.load(address(stream), bytes32(uint256(9)))) >> 112;
@@ -78,7 +83,7 @@ contract TestDeposit is BaseTest {
 
         assertEq(testTokenB.balanceOf(address(this)), preBal + 100);
 
-        stream.claimDepositTokens(5);
+        stream.claimDepositTokens(4);
         checkState();
     }
 }

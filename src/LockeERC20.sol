@@ -89,7 +89,6 @@ library DateTime {
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
 /// @author Modified from Solmate (https://github.com/Rari-Capital/solmate/blob/master/src/tokens/ERC20.sol)
 abstract contract LockeERC20 is SharedState, ILockeERC20 {
-    error NotTransferableYet();
 
     /*///////////////////////////////////////////////////////////////
                              METADATA STORAGE
@@ -101,7 +100,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
 
     uint8 public immutable override decimals;
 
-    uint32 private immutable endStream;
+    uint32 private immutable erc20_endStream;
 
     /*///////////////////////////////////////////////////////////////
                               ERC20 STORAGE
@@ -133,7 +132,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
     constructor(address depositToken, uint256 streamId, uint32 _endDepositLock, uint32 _endStream, bool isIndefinite)
         SharedState(depositToken, _endDepositLock)
     {
-        endStream = _endStream;
+        erc20_endStream = _endStream;
 
         if (!isIndefinite) {
             // locke + depositTokenName + streamId = lockeUSD Coin-1
@@ -162,14 +161,14 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
 
     modifier transferabilityDelay() {
         // ensure the time is after end stream
-        if (block.timestamp <= endStream) {
+        if (block.timestamp <= erc20_endStream) {
             revert NotTransferableYet();
         }
         _;
     }
 
     function transferStartTime() external view override returns (uint32) {
-        return endStream;
+        return erc20_endStream;
     }
 
     function approve(address spender, uint256 amount) external override returns (bool) {
