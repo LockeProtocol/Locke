@@ -6,7 +6,8 @@ import "./IReimbursementToken.sol";
 interface ILockeERC20 is IReimbursementToken {
     event Transfer(address indexed from, address indexed to, uint256 amount);
     event Approval(address indexed owner, address indexed spender, uint256 amount);
-
+    error NotTransferableYet();
+    
     function name() external view returns (string memory _name);
     function symbol() external view returns (string memory _symbol);
     function decimals() external view returns (uint8 _decimals);

@@ -5,20 +5,20 @@ import "./interfaces/IStream.sol";
 import "./interfaces/IReimbursementToken.sol";
 
 abstract contract SharedState is IReimbursementToken {
-    uint32 private immutable endDepositLock;
+    uint32 private immutable reimburse_endDepositLock;
 
-    address private immutable depositToken;
+    address private immutable reimburse_depositToken;
 
     constructor(address _depositToken, uint32 _edl) {
-        depositToken = _depositToken;
-        endDepositLock = _edl;
+        reimburse_depositToken = _depositToken;
+        reimburse_endDepositLock = _edl;
     }
 
     function underlying() external view override returns (address) {
-        return depositToken;
+        return reimburse_depositToken;
     }
 
     function maturity() external view override returns (uint256) {
-        return endDepositLock;
+        return reimburse_endDepositLock;
     }
 }

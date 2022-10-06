@@ -418,12 +418,12 @@ contract Stream is LockeERC20, IStream {
 
         depositTokenAmount += trueDepositAmt;
 
-        uint176 tokens_amt = uint176(uint256(trueDepositAmt) * 10 ** 18);
+        uint176 tokensAmt = uint176(uint256(trueDepositAmt) * 10 ** 18);
 
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
-        ts.tokens += tokens_amt;
+        ts.tokens += tokensAmt;
 
-        uint256 virtualBal = dilutedBalance(tokens_amt);
+        uint256 virtualBal = dilutedBalance(tokensAmt);
         ts.virtualBalance += virtualBal;
         totalVirtualBalance += virtualBal;
         unstreamed += trueDepositAmt;
@@ -444,22 +444,22 @@ contract Stream is LockeERC20, IStream {
      */
     function withdraw(uint112 amount) external override lock updateStream {
         TokenStream storage ts = tokenStreamForAccount[msg.sender];
-        uint176 tokens_amt = uint176(uint256(amount) * 10 ** 18);
-        if (ts.tokens < tokens_amt) {
+        uint176 tokensAmt = uint176(uint256(amount) * 10 ** 18);
+        if (ts.tokens < tokensAmt) {
             revert BalanceError();
         }
 
-        _withdraw(tokens_amt, amount, ts);
+        _withdraw(tokensAmt, amount, ts);
     }
 
-    function _withdraw(uint176 tokens_amt, uint112 amt, TokenStream storage ts) internal {
-        if (tokens_amt == 0) {
+    function _withdraw(uint176 tokensAmt, uint112 amt, TokenStream storage ts) internal {
+        if (tokensAmt == 0) {
             revert ZeroAmount();
         }
 
-        ts.tokens -= tokens_amt;
+        ts.tokens -= tokensAmt;
 
-        uint256 virtualBal = dilutedBalance(tokens_amt);
+        uint256 virtualBal = dilutedBalance(tokensAmt);
         uint256 currVbal = ts.virtualBalance;
 
         // saturating subtraction - this is to account for

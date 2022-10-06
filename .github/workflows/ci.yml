@@ -31,3 +31,15 @@ jobs:
           coverage-files: ./lcov-filtered.info
           artifact-name: code-coverage-report
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/checkout@v3
+      - name: Run Slither
+        uses: crytic/slither-action@v0.2.0
+        with:
+          sarif: results.sarif
+          fail-on: none
+          slither-args: . --compile-force-framework foundry --filter-path "./test|./lib/forge-std|./lib/solmate" --exclude timestamp,solc-version --exclude-low
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}
