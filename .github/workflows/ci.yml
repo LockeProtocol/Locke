@@ -20,9 +20,7 @@ jobs:
       - name: Run tests
         run: forge test -vvv
       - name: Generate coverage
-        run: forge coverage
-      - name: Checkout code
-        uses: actions/checkout@v2
+        run: forge coverage --report
       # ... Generate LCOV files or download it from a different job
       - name: Report code coverage
         uses: zgosalvez/github-actions-report-lcov@v1
