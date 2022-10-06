@@ -24,7 +24,7 @@ jobs:
       - name: Setup LCOV
         uses: hrishikesh-kadam/setup-lcov@v1
       - name: Filter lcov
-        run: lcov -r lcov.info "test/*" -o lcov-filtered.info
+        run: lcov -r lcov.info "test/*" -o lcov-filtered.info --rc lcov_branch_coverage=1
       - name: Report code coverage
         uses: zgosalvez/github-actions-report-lcov@v1
         with:
