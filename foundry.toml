@@ -87,9 +87,9 @@ include_storage = true
 include_push_bytes = true
 
 
-[profile.CI.fuzz]
+[profile.deep.fuzz]
 runs = 1000
 
-[profile.CI.invariant]
-runs = 256
-depth = 40
+[profile.deep.invariant]
+runs = 4000
+depth = 150
