@@ -1,79 +1,101 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.11;
+pragma solidity 0.8.17;
 
 import "./interfaces/IStream.sol";
 
 contract LockeLens {
     /**
-     * @dev Gets the current deposit tokens for a user that haven't been streamed over 
-     **/
-	function currDepositTokensNotYetStreamed(IStream stream, address who) external view returns (uint256) {
+     * @dev Gets the current deposit tokens for a user that haven't been streamed over
+     *
+     */
+    function currDepositTokensNotYetStreamed(IStream stream, address who) external view returns (uint256) {
         unchecked {
             uint32 timestamp = uint32(block.timestamp);
-            (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
-            if (block.timestamp >= endStream) return 0;
+            (, uint32 endStream,,) = stream.streamParams();
+            if (block.timestamp >= endStream) {
+                return 0;
+            }
 
-
-            (
-                uint256 lastCumulativeRewardPerToken,
-                uint256 virtualBalance,
-                uint112 rewards,
-                uint112 tokens,
-                uint32 lastUpdate,
-                bool merkleAccess
-            ) = stream.tokenStreamForAccount(address(who));
+            (,, uint176 tokens, uint32 lastUpdate,,) = stream.tokenStreamForAccount(address(who));
 
             if (timestamp < lastUpdate) {
-                return tokens;
+                return tokens / 10 ** 18;
             }
 
             uint32 acctTimeDelta = timestamp - lastUpdate;
 
             if (acctTimeDelta > 0) {
-                uint256 streamAmt = uint256(acctTimeDelta) * tokens / (endStream - lastUpdate);
-                return tokens - uint112(streamAmt);
+                // some time has passed since this user last interacted
+                // update ts not yet streamed
+                // downcast is safe as guaranteed to be a % of uint112
+                if (tokens > 0) {
+                    // Safety:
+                    //  1. endStream guaranteed to be greater than the current timestamp, see first line in this modifier
+                    //  2. (endStream - timestamp) * ts.tokens: (endStream - timestamp) is uint32, ts.tokens is uint112, cannot overflow uint256
+                    //  3. endStream - ts.lastUpdate: We are guaranteed to not update ts.lastUpdate after endStream
+                    return uint176(uint256(endStream - timestamp) * tokens / (endStream - lastUpdate)) / 10 ** 18;
+                } else {
+                    return 0;
+                }
             } else {
-                return tokens;
+                return tokens / 10 ** 18;
             }
         }
-	}
+    }
 
     /**
      * @dev Gets a stream's remaining reward tokens that haven't been allocated
-     **/
+     *
+     */
     function rewardsRemainingToAllocate(IStream stream) external view returns (uint256) {
         uint32 timestamp = uint32(block.timestamp);
-        (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
+        (uint32 startTime, uint32 endStream,,) = stream.streamParams();
         uint32 streamDuration = endStream - startTime;
 
-        (
-            uint112 rewardTokenAmount,
-            uint112 depositTokenAmount,
-            uint112 rewardTokenFeeAmount,
-            uint112 depositTokenFlashloanFeeAmount
-        ) = stream.tokenAmounts();
+        (uint112 rewardTokenAmount,) = stream.tokenAmounts();
 
-        if (timestamp > endStream) return 0;
-        if (timestamp <= startTime) return rewardTokenAmount;
-        
+        if (timestamp > endStream) {
+            return 0;
+        }
+        if (timestamp <= startTime) {
+            return rewardTokenAmount;
+        }
+
         return uint256(endStream - timestamp) * rewardTokenAmount / streamDuration;
     }
 
     /**
      * @dev Gets the current unstreamed deposit tokens for a stream
-     **/
+     *
+     */
     function currUnstreamed(IStream stream) external view returns (uint256) {
         uint32 timestamp = uint32(block.timestamp);
-        (uint32 startTime, uint32 endStream, ,) = stream.streamParams();
-        uint32 streamDuration = endStream - startTime;
+        (uint32 startTime, uint32 endStream,,) = stream.streamParams();
 
-        if (timestamp >= endStream) return 0;
+        if (timestamp >= endStream) {
+            return 0;
+        }
 
         uint256 unstreamed = stream.unstreamed();
-        if (timestamp < startTime) return unstreamed;
-        
+        if (timestamp < startTime) {
+            return unstreamed;
+        }
+
         uint32 lastUpdate = stream.lastUpdate();
         uint32 tdelta = timestamp - lastUpdate;
         return unstreamed - (uint256(tdelta) * unstreamed / (endStream - lastUpdate));
+    }
+
+    /**
+     * @dev Gets the current number of reward tokens that will be reclaimable by the creator
+     *
+     */
+    function unrewardedTokens(IStream stream) external view returns (uint256) {
+        (uint32 startTime, uint32 endStream,,) = stream.streamParams();
+        uint32 streamDuration = endStream - startTime;
+        (uint112 rewardTokenAmount,) = stream.tokenAmounts();
+        uint256 actualStreamedTime = uint256(streamDuration - stream.unaccruedSeconds());
+        uint256 actualRewards = actualStreamedTime * rewardTokenAmount / streamDuration;
+        return rewardTokenAmount - actualRewards;
     }
 }

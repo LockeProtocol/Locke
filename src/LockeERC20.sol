@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
 import "solmate/tokens/ERC20.sol";
 import "./interfaces/ILockeERC20.sol";
 import "./SharedState.sol";
-
 
 library DateTime {
     uint256 private constant MAX_UINT256_STRING_LENGTH = 78;
@@ -23,10 +22,7 @@ library DateTime {
         // Populate string from right to left (lsb to msb).
         while (n != 0) {
             assembly {
-                let char := add(
-                    ASCII_DIGIT_OFFSET,
-                    mod(n, 10)
-                )
+                let char := add(ASCII_DIGIT_OFFSET, mod(n, 10))
                 mstore(add(nstr, k), char)
                 k := sub(k, 1)
                 n := div(n, 10)
@@ -68,21 +64,25 @@ library DateTime {
         }
     }
 
-    function daysToDate(uint _days) public pure returns (string memory datetime) {
-        int __days = int(_days);
+    function daysToDate(uint256 _days) public pure returns (string memory datetime) {
+        int256 __days = int256(_days);
 
-        int L = __days + 68569 + 2440588;
-        int N = 4 * L / 146097;
+        int256 L = __days + 68569 + 2440588;
+        int256 N = 4 * L / 146097;
         L = L - (146097 * N + 3) / 4;
-        int _year = 4000 * (L + 1) / 1461001;
+        int256 _year = 4000 * (L + 1) / 1461001;
         L = L - 1461 * _year / 4 + 31;
-        int _month = 80 * L / 2447;
-        int _day = L - 2447 * _month / 80;
+        int256 _month = 80 * L / 2447;
+        int256 _day = L - 2447 * _month / 80;
         L = _month / 11;
         _month = _month + 2 - 12 * L;
         _year = 100 * (N - 49) + _year + L;
 
-        datetime = string(abi.encodePacked(_monthToString(uint256(_month)), "-", toString(uint256(_day)), "-", toString(uint256(_year))));
+        datetime = string(
+            abi.encodePacked(
+                _monthToString(uint256(_month)), "-", toString(uint256(_day)), "-", toString(uint256(_year))
+            )
+        );
     }
 }
 
@@ -90,6 +90,7 @@ library DateTime {
 /// @author Modified from Solmate (https://github.com/Rari-Capital/solmate/blob/master/src/tokens/ERC20.sol)
 abstract contract LockeERC20 is SharedState, ILockeERC20 {
     error NotTransferableYet();
+
     /*///////////////////////////////////////////////////////////////
                              METADATA STORAGE
     //////////////////////////////////////////////////////////////*/
@@ -98,7 +99,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
 
     string public override symbol;
 
-    uint8 public override immutable decimals;
+    uint8 public immutable override decimals;
 
     uint32 private immutable endStream;
 
@@ -116,7 +117,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
                            EIP-2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public override constant PERMIT_TYPEHASH =
+    bytes32 public constant override PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
     uint256 internal immutable INITIAL_CHAIN_ID;
@@ -129,39 +130,24 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(
-        address depositToken,
-        uint256 streamId,
-        uint32 _endDepositLock,
-        uint32 _endStream,
-        bool isIndefinite
-    )
+    constructor(address depositToken, uint256 streamId, uint32 _endDepositLock, uint32 _endStream, bool isIndefinite)
         SharedState(depositToken, _endDepositLock)
     {
         endStream = _endStream;
 
         if (!isIndefinite) {
             // locke + depositTokenName + streamId = lockeUSD Coin-1
-            string memory datetime = DateTime.daysToDate(_endDepositLock / 86400);
-            name = string(abi.encodePacked(
-                "locke",
-                ERC20(depositToken).name(),
-                " ",
-                DateTime.toString(streamId),
-                ": ",
-                datetime
-            ));
+            string memory datetime = DateTime.daysToDate(_endDepositLock / 1 days);
+            name = string(
+                abi.encodePacked("locke", ERC20(depositToken).name(), " ", DateTime.toString(streamId), ": ", datetime)
+            );
             // locke + Symbol + streamId = lockeUSDC1
             // TODO: we could have start_time+stream_duration+depositlocktime as maturity-date
             // i.e. lockeETH8-AUG-14-2022
 
-            symbol = string(abi.encodePacked(
-                "locke",
-                ERC20(depositToken).symbol(),
-                DateTime.toString(streamId),
-                "-",
-                datetime
-            ));
+            symbol = string(
+                abi.encodePacked("locke", ERC20(depositToken).symbol(), DateTime.toString(streamId), "-", datetime)
+            );
         }
 
         decimals = 18;
@@ -174,9 +160,11 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
                               ERC20 LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    modifier transferabilityDelay {
+    modifier transferabilityDelay() {
         // ensure the time is after end stream
-        if (block.timestamp < endStream) revert NotTransferableYet();
+        if (block.timestamp <= endStream) {
+            revert NotTransferableYet();
+        }
         _;
     }
 
@@ -192,7 +180,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         return true;
     }
 
-    function transfer(address to, uint256 amount) transferabilityDelay external override returns (bool) {
+    function transfer(address to, uint256 amount) external override transferabilityDelay returns (bool) {
         balanceOf[msg.sender] -= amount;
 
         // This is safe because the sum of all user
@@ -206,11 +194,12 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         return true;
     }
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) transferabilityDelay external override returns (bool) {
+    function transferFrom(address from, address to, uint256 amount)
+        external
+        override
+        transferabilityDelay
+        returns (bool)
+    {
         if (allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] -= amount;
         }
@@ -232,15 +221,10 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
                               EIP-2612 LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external override {
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        override
+    {
         require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
 
         // This is safe because the only math done is incrementing
@@ -248,7 +232,7 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
         unchecked {
             bytes32 digest = keccak256(
                 abi.encodePacked(
-                    "\x19\x01",
+                    hex"1901",
                     DOMAIN_SEPARATOR(),
                     keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))
                 )
@@ -268,16 +252,15 @@ abstract contract LockeERC20 is SharedState, ILockeERC20 {
     }
 
     function computeDomainSeparator() internal view virtual returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                    keccak256(bytes(name)),
-                    keccak256(bytes("1")),
-                    block.chainid,
-                    address(this)
-                )
-            );
+        return keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name)),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     /*///////////////////////////////////////////////////////////////

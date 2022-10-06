@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.11;
+pragma solidity 0.8.17;
 
-import "../utils/LockeTest.sol";
-import "../../LockeFactory.sol";
-import "../../interfaces/IStreamFactory.sol";
+import "../utils/LockeTest.t.sol";
+import "../../src/LockeFactory.sol";
+import "../../src/interfaces/IStreamFactory.sol";
 
 contract StreamFactoryTest is BaseTest {
     function setUp() public {
@@ -15,11 +15,8 @@ contract StreamFactoryTest is BaseTest {
         StreamCreation sc = new StreamCreation();
         MerkleStreamCreation msc = new MerkleStreamCreation();
 
-        StreamFactory sf = new StreamFactory(bob, bob, sc, msc);
+        StreamFactory sf = new StreamFactory(sc, msc);
 
-        (uint16 feePercent, bool feeEnabled) = sf.feeParams();
-        assertTrue(!feeEnabled);
-        assertEq(feePercent, 0);
         (
             uint32 maxDepositLockDuration,
             uint32 maxRewardLockDuration,
@@ -37,13 +34,8 @@ contract StreamFactoryTest is BaseTest {
     }
 
     function test_createStreamNoMerkle() public {
-        (
-            uint32 maxDepositLockDuration,
-            uint32 maxRewardLockDuration,
-            uint32 maxStreamDuration,
-            uint32 minStreamDuration,
-            uint32 minStartDelay
-        ) = defaultStreamFactory.streamCreationParams();
+        (uint32 maxDepositLockDuration,,, uint32 minStreamDuration, uint32 minStartDelay) =
+            defaultStreamFactory.streamCreationParams();
 
         stream = defaultStreamFactory.createStream(
             address(testTokenA),
@@ -56,31 +48,22 @@ contract StreamFactoryTest is BaseTest {
         );
         vm.label(address(stream), "Stream");
 
-        (uint16 feePercent, bool feeEnabled) = stream.feeParams();
-        assertEq(feePercent, 0);
-        assertTrue(!feeEnabled);
+        (startTime, endStream, endDepositLock, endRewardLock) = stream.streamParams();
 
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = stream.streamParams();
-
-        assertEq(startTime,      block.timestamp + minStartDelay);
-        assertEq(endStream,      block.timestamp + minStartDelay + minStreamDuration);
+        assertEq(startTime, block.timestamp + minStartDelay);
+        assertEq(endStream, block.timestamp + minStartDelay + minStreamDuration);
         assertEq(endDepositLock, block.timestamp + minStartDelay + minStreamDuration + maxDepositLockDuration);
-        assertEq(endRewardLock,  block.timestamp + minStartDelay + 0);
+        assertEq(endRewardLock, block.timestamp + minStartDelay + 0);
 
-        assertEq(stream.rewardToken(),  address(testTokenA));
+        assertEq(stream.rewardToken(), address(testTokenA));
         assertEq(stream.depositToken(), address(testTokenB));
         assertTrue(!stream.isIndefinite());
         assertEq(stream.streamId(), 0);
         assertEq(stream.streamCreator(), address(this));
         assertEq(stream.lastUpdate(), startTime);
-        
-        assertEq(stream.name(),     "lockeTest Token B 0: JAN-1-2023");
-        assertEq(stream.symbol(),   "lockeTTB0-JAN-1-2023");
+
+        assertEq(stream.name(), "lockeTest Token B 0: JAN-1-2023");
+        assertEq(stream.symbol(), "lockeTTB0-JAN-1-2023");
         assertEq(stream.decimals(), 18);
 
         assertEq(stream.transferStartTime(), endStream);
@@ -91,13 +74,8 @@ contract StreamFactoryTest is BaseTest {
     }
 
     function test_createStreamMerkle() public {
-        (
-            uint32 maxDepositLockDuration,
-            uint32 maxRewardLockDuration,
-            uint32 maxStreamDuration,
-            uint32 minStreamDuration,
-            uint32 minStartDelay
-        ) = defaultStreamFactory.streamCreationParams();
+        (uint32 maxDepositLockDuration,,, uint32 minStreamDuration, uint32 minStartDelay) =
+            defaultStreamFactory.streamCreationParams();
 
         merkle = defaultStreamFactory.createStream(
             address(testTokenA),
@@ -111,31 +89,22 @@ contract StreamFactoryTest is BaseTest {
         );
         vm.label(address(merkle), "MerkleStream");
 
-        (uint16 feePercent, bool feeEnabled) = merkle.feeParams();
-        assertEq(feePercent, 0);
-        assertTrue(!feeEnabled);
+        (startTime, endStream, endDepositLock, endRewardLock) = merkle.streamParams();
 
-        (
-            startTime,
-            endStream,
-            endDepositLock,
-            endRewardLock
-        ) = merkle.streamParams();
-
-        assertEq(startTime,      block.timestamp + minStartDelay);
-        assertEq(endStream,      block.timestamp + minStartDelay + minStreamDuration);
+        assertEq(startTime, block.timestamp + minStartDelay);
+        assertEq(endStream, block.timestamp + minStartDelay + minStreamDuration);
         assertEq(endDepositLock, block.timestamp + minStartDelay + minStreamDuration + maxDepositLockDuration);
-        assertEq(endRewardLock,  block.timestamp + minStartDelay + 0);
+        assertEq(endRewardLock, block.timestamp + minStartDelay + 0);
 
-        assertEq(merkle.rewardToken(),  address(testTokenA));
+        assertEq(merkle.rewardToken(), address(testTokenA));
         assertEq(merkle.depositToken(), address(testTokenB));
         assertTrue(!merkle.isIndefinite());
         assertEq(merkle.streamId(), 0);
         assertEq(merkle.streamCreator(), address(this));
         assertEq(merkle.lastUpdate(), startTime);
-        
-        assertEq(merkle.name(),     "lockeTest Token B 0: JAN-1-2023");
-        assertEq(merkle.symbol(),   "lockeTTB0-JAN-1-2023");
+
+        assertEq(merkle.name(), "lockeTest Token B 0: JAN-1-2023");
+        assertEq(merkle.symbol(), "lockeTTB0-JAN-1-2023");
         assertEq(merkle.decimals(), 18);
 
         assertEq(merkle.transferStartTime(), endStream);
@@ -143,7 +112,7 @@ contract StreamFactoryTest is BaseTest {
         assertEq(merkle.maturity(), endDepositLock);
 
         assertEq(merkle.merkleRoot(), bytes32(hex"1337"));
-        
+
         assertEq(defaultStreamFactory.currStreamId(), 1);
     }
 
@@ -280,35 +249,5 @@ contract StreamFactoryTest is BaseTest {
             false,
             bytes32(hex"1337")
         );
-    }
-
-    function test_updateFeeParamsNotGov() public {
-        vm.prank(bob);
-        vm.expectRevert(IMinimallyGoverned.NotGov.selector);
-        defaultStreamFactory.updateFeeParams(IStreamFactory.GovernableFeeParams({feePercent: 0, feeEnabled: true}));
-    }
-
-    function test_updateFeeParams() public {
-        defaultStreamFactory.updateFeeParams(IStreamFactory.GovernableFeeParams({feePercent: 1, feeEnabled: true}));
-        (uint16 feePercent, bool feeEnabled) = defaultStreamFactory.feeParams();
-        assertEq(feePercent, 1);
-        assertTrue(feeEnabled);
-    }
-
-    function test_updateFeeParamsTooHighRevert() public {
-        vm.expectRevert(IStreamFactory.GovParamsError.selector);
-        defaultStreamFactory.updateFeeParams(IStreamFactory.GovernableFeeParams({feePercent: 501, feeEnabled: true}));
-    }
-
-    function test_updateStreamParamsNotGov() public {
-        vm.prank(bob);
-        vm.expectRevert(IMinimallyGoverned.NotGov.selector);
-        defaultStreamFactory.updateStreamParams(IStreamFactory.GovernableStreamParams({
-            maxDepositLockDuration: 52 weeks,
-            maxRewardLockDuration: 52 weeks,
-            maxStreamDuration: 2 weeks,
-            minStreamDuration: 1 hours,
-            minStartDelay: 1 days
-        }));
     }
 }

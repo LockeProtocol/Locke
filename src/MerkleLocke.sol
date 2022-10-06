@@ -1,20 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-pragma solidity 0.8.11;
+pragma solidity 0.8.17;
 
 import "./Locke.sol";
 import "./interfaces/IMerkleStream.sol";
 
 library MerkleProof {
-    function verify(
-        bytes32[] memory proof,
-        bytes32 root,
-        bytes32 leaf
-    ) internal pure returns (bool) {
+    function verify(bytes32[] calldata proof, bytes32 root, bytes32 leaf) internal pure returns (bool) {
         return processProof(proof, leaf) == root;
     }
 
-    function processProof(bytes32[] memory proof, bytes32 leaf) internal pure returns (bytes32) {
+    function processProof(bytes32[] calldata proof, bytes32 leaf) internal pure returns (bytes32) {
         bytes32 computedHash = leaf;
         for (uint256 i = 0; i < proof.length; i++) {
             bytes32 proofElement = proof[i];
@@ -51,8 +47,6 @@ contract MerkleStream is Stream, IMerkleStream {
         uint32 _streamDuration,
         uint32 _depositLockDuration,
         uint32 _rewardLockDuration,
-        uint16 _feePercent,
-        bool _feeEnabled,
         bytes32 _merkleRoot
     )
         Stream(
@@ -64,22 +58,24 @@ contract MerkleStream is Stream, IMerkleStream {
             _startTime,
             _streamDuration,
             _depositLockDuration,
-            _rewardLockDuration,
-            _feePercent,
-            _feeEnabled
+            _rewardLockDuration
         )
     {
         merkleRoot = _merkleRoot;
     }
-    
-    function stake(uint112 amount, bytes32[] memory proof) external lock updateStream {
-        if (!MerkleProof.verify(proof, merkleRoot, keccak256(abi.encodePacked(msg.sender, true)))) revert NoAccess();
+
+    function stake(uint112 amount, bytes32[] calldata proof) external lock updateStream {
+        if (!MerkleProof.verify(proof, merkleRoot, keccak256(abi.encodePacked(msg.sender, true)))) {
+            revert NoAccess();
+        }
         tokenStreamForAccount[msg.sender].merkleAccess = true;
         _stake(amount);
     }
 
-    function stake(uint112 amount) external override(Stream, IStream) lock updateStream {
-        if (!tokenStreamForAccount[msg.sender].merkleAccess) revert NoAccess();
+    function stake(uint112 amount) external override (Stream, IStream) lock updateStream {
+        if (!tokenStreamForAccount[msg.sender].merkleAccess) {
+            revert NoAccess();
+        }
         _stake(amount);
     }
 }
