@@ -2,29 +2,35 @@
 
 set -eo pipefail
 
-# bring up the network
-. $(dirname $0)/run-temp-testnet.sh
-
 # run the deploy script
-. $(dirname $0)/deploy.sh
+. $(dirname $0)/deploy-factory.sh
+
+# deploy test tokens
+. $(dirname $0)/deploy-testtoken.sh
+
+# deploy the locke lens
+. $(dirname $0)/deploy-lens.sh
 
 # get the address
-addr=$(jq -r '.Greeter' out/addresses.json)
+factory=$(jq -r '.StreamFactory' out/addresses.json)
+tokenA=$(jq -r '.DevTokenA' out/addresses.json)
+tokenB=$(jq -r '.DevTokenB' out/addresses.json)
+lens=$(jq -r '.LockeLens' out/addresses.json)
 
-# the initial greeting must be empty
-greeting=$(seth call $addr 'greeting()(string)')
-[[ $greeting = "" ]] || error
+# Set minStreamStartDelay to 1 minute
+tx=$(seth send $factory \
+    0x6256cd2d0000000000000000000000000000000000000000000000000000000001e133800000000000000000000000000000000000000000000000000000000001e133800000000000000000000000000000000000000000000000000000000000093a800000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000003c\
+    --keystore $ETH_KEYSTORE \
+    --password /dev/null)
 
-# set it to a value
-seth send $addr \
-    'greet(string memory)' '"yo"' \
-    --keystore $TMPDIR/8545/keystore \
-    --password /dev/null
+log "Updated factory GovernableStreamParams"
 
-sleep 1
+echo "export ETH_FROM=$ETH_FROM"
+echo "export ETH_KEYSTORE=$ETH_KEYSTORE"
+echo "export TOKENA=$tokenA"
+echo "export TOKENB=$tokenB"
+echo "export FACTORY=$factory"
+echo "export LENS=$lens"
 
-# should be set afterwards
-greeting=$(seth call $addr 'greeting()(string)')
-[[ $greeting = "yo" ]] || error
 
-echo "Success."
+

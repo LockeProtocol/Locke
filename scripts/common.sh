@@ -57,10 +57,11 @@ EOF
 # (or omit the env vars if you have already set them)
 deploy() {
 	NAME=$1
-	ARGS=${@:2}
+	FILENAME=$2
+	ARGS=${@:3}
 
 	# find file path
-	CONTRACT_PATH=$(find . -name $NAME.sol)
+	CONTRACT_PATH=$(find ./src -name $2)
 	CONTRACT_PATH=${CONTRACT_PATH:2}
 
 	# select the filename and the contract in it
@@ -77,7 +78,7 @@ deploy() {
 	GAS=$(seth estimate --create "$BYTECODE" "$SIG" $ARGS --rpc-url "$ETH_RPC_URL")
 
 	# deploy
-	ADDRESS=$(dapp create "$NAME" $ARGS -- --gas "$GAS" --rpc-url "$ETH_RPC_URL")
+	ADDRESS=$(dapp create "$NAME" $ARGS -- --gas "$GAS" --rpc-url "$ETH_RPC_URL" --password /dev/null)
 
 	# save the addrs to the json
 	# TODO: It'd be nice if we could evolve this into a minimal versioning system
